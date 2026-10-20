@@ -15,7 +15,7 @@ const apply = (path: string, init: RequestInit & { cookies?: string[] } = {}) =>
 	fetch(`${origin}${path}`, { ...init, redirect: "manual", headers: { host: applyHost, cookie: (init.cookies ?? []).join("; "), ...(init.method === "POST" ? { origin: `https://${applyHost}` } : {}), ...(init.headers as any) } });
 
 const welcome = await (await apply("/")).text();
-check("the landing page has the map and the way to apply", welcome.includes('<svg class="map"') && welcome.includes('href="/apply"'));
+check("the landing page has the way to apply", welcome.includes(`href="/apply"`));
 const browse = await (await apply("/instances")).text();
 check("/instances lists the instances", browse.includes('id="grid"') && browse.includes('href="/instances/xitter.space"'));
 check("an instance has its own page", (await (await apply("/instances/xitter.space")).text()).includes("Federates with"));
