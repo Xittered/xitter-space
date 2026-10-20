@@ -17,6 +17,7 @@ import { PollError, createCard, vote } from "./polls";
 import { placeById, searchPlaces } from "./places";
 import { reportFlow } from "./reports";
 import { settingsFor } from "./shell";
+import { changeCountryFlow } from "./country-setting";
 import { hashtagsLike, searchUsers } from "./search";
 import { STAFF_HANDLE } from "./invites";
 import { accountSettingsRoute, changeUsername, revokeSessionsRoute } from "./account-settings";
@@ -26,7 +27,7 @@ import { exploreSettings, searchLocations, setExploreSettings } from "./explore-
 import { loginHistory } from "./login-history";
 import { emailInfo, resendConfirmation } from "./email-address";
 import { pushSettingsRoute } from "./push";
-import { answerRequest, pendingRequests, setFollow, setProtected, suggestedUsers, updateFriendship, userById, userByName, usersByIds } from "./users";
+import { answerRequest, followList, knownFollowerCount, pendingRequests, setFollow, setProtected, suggestedUsers, updateFriendship, userById, userByName, usersByIds } from "./users";
 import { cleanText, oneLine } from "./text-clean";
 
 // friendships/show's shape, from the viewer's side (source) and the other account's (target)
@@ -311,6 +312,13 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 		const [fresh] = await sql`select screen_name, language, protected, preferences->>'discoverable_by_email' = 'true' as discoverable_by_email from users where id = ${viewer.id}::bigint`;
 		return Response.json(settingsFor({ ...viewer, ...fresh }) ?? {});
 	}
+	// Settings > Account information > Country
+	if (path === "/1.1/onboarding/task.json" && method === "POST") {
+		const url = new URL(req.url);
+		const body = await req.json().catch(() => ({}));
+		if (process.env.LOG_REQUESTS) console.log(`onboarding task ${url.search} ${JSON.stringify(body).slice(0, 600)}`);
+		if (/(^|\/)change_country$/.test(url.searchParams.get("flow_name") ?? "") || String(body?.flow_token ?? "").startsWith("change_country:")) return changeCountryFlow(viewer, body);
+	}
 	// Report post / Report account
 	if (path === "/1.1/report/flow.json" && method === "POST") {
 		const body = await req.json().catch(() => ({}));
@@ -386,7 +394,16 @@ export async function restRoute(method: string, path: string, viewer: Viewer, re
 	if (path === "/1.1/help/settings.json") return Response.json({});
 	if (path === "/fleets/v1/fleetline") return Response.json({ threads: [], hydrated_threads: [], refresh_delay_secs: 300 });
 	if (path === "/fleets/v1/avatar_content") return Response.json({ users: {}, refresh_delay_secs: 0 });
-	if (path === "/1.1/friends/following/list.json") return Response.json(EMPTY_LIST);
+	// "Followers you know" line on a profile: a few faces plus the total
+	if (path === "/1.1/friends/following/list.json") {
+		const params = new URL(req.url).searchParams;
+		const target = params.get("user_id") ?? "";
+		if (!isId(target) || target === viewer.id) return Response.json(EMPTY_LIST);
+		const count = Math.min(Math.max(Number(params.get("count")) || 3, 1), 100);
+		const users = await followList(viewer.id, target, "known_followers", count);
+		const total = users.length ? await knownFollowerCount(viewer.id, target) : 0;
+		return Response.json({ ...EMPTY_LIST, users: users.map(legacyUser), total_count: total });
+	}
 	if (path === "/1.1/live_pipeline/update_subscriptions") return Response.json({ subscriptions: { errors: [] } });
 	if (path.endsWith("/p2"))
 		return Response.json({ totalEvents: 0, eventsFailed: 0, shouldRetry: false, retryAfterMs: null, eventsFailedSequenceNumbers: null, message: null });
