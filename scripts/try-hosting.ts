@@ -14,6 +14,10 @@ const jar = (r: Response) => r.headers.getSetCookie().map((c) => c.split(";")[0]
 const apply = (path: string, init: RequestInit & { cookies?: string[] } = {}) =>
 	fetch(`${origin}${path}`, { ...init, redirect: "manual", headers: { host: applyHost, cookie: (init.cookies ?? []).join("; "), ...(init.method === "POST" ? { origin: `https://${applyHost}` } : {}), ...(init.headers as any) } });
 
+const welcome = await (await apply("/")).text();
+check("the welcome page lists this instance", welcome.includes("<h2>Instances</h2>") && welcome.includes('href="/apply"'));
+check("/go only goes to listed instances", (await apply("/go?to=evil.example")).status === 200 && (await apply("/go?to=xitter.space")).headers.get("location") === "https://xitter.space/");
+
 const login = await fetch(`${origin}/login`, { method: "POST", body: new URLSearchParams({ username: user, password }), redirect: "manual" });
 const main = jar(login);
 check("signed in on the main site", main.some((c) => c.startsWith("auth_token=")));
@@ -39,7 +43,7 @@ const session = jar(cb).filter((c) => c.startsWith("apply_session="));
 check("the callback signs in on the apply site", cb.status === 303 && session.length === 1);
 check("a used ticket is refused", (await apply(`/callback${back2.search}`, { cookies: stateCookie })).status === 400);
 
-let home = await (await apply("/", { cookies: session })).text();
+let home = await (await apply("/apply", { cookies: session })).text();
 check("the form shows when signed in", home.includes(`Signed in as @${user}`) && home.includes('action="/apply"'));
 const csrf = /name="csrf" value="([^"]+)"/.exec(home)![1]!;
 const post = (path: string, body: Record<string, string>, extra: Record<string, string> = {}) =>
@@ -51,13 +55,13 @@ check("a private target is refused", (await (await post("/apply", { ...form, tar
 check("a missing csrf is refused", (await apply("/apply", { method: "POST", cookies: session, body: new URLSearchParams(form) })).status === 403);
 check("another site's form is refused", (await post("/apply", form, { origin: "https://evil.example" })).status === 403);
 check("a good application goes in", (await post("/apply", form)).status === 303);
-home = await (await apply("/", { cookies: session })).text();
+home = await (await apply("/apply", { cookies: session })).text();
 check("the page shows it waiting for review", home.includes(`${form.name}.${domain}`) && home.includes("Waiting for review"));
 check("a second application is refused", !(await post("/apply", { ...form, name: `${form.name}x` })).headers.get("location"));
 check("withdrawing works", (await post("/withdraw", {})).status === 303);
-home = await (await apply("/", { cookies: session })).text();
+home = await (await apply("/apply", { cookies: session })).text();
 check("the form is back after withdrawing", home.includes('action="/apply"'));
-check("signing out works", (await post("/logout", {})).status === 303 && !(await (await apply("/", { cookies: session })).text()).includes("Signed in as"));
+check("signing out works", (await post("/logout", {})).status === 303 && !(await (await apply("/apply", { cookies: session })).text()).includes("Signed in as"));
 
 console.log(failed ? `${failed} failed` : "all passed");
 process.exit(failed ? 1 : 0);

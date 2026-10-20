@@ -16,7 +16,7 @@ import { esc } from "./account-page";
 import type { Viewer } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
-import { readLimited } from "./federation";
+import { INSTANCE_ID, listed, readLimited } from "./federation";
 import { hateInName } from "./hate";
 import { newId } from "./ids";
 import { requestIp } from "./login-history";
@@ -190,7 +190,8 @@ main{max-width:620px;margin:0 auto;padding:40px 16px 64px}h1{font-size:28px;marg
 label{display:block;margin:14px 0 4px;font-weight:700}input,textarea{width:100%;padding:10px 12px;border:1px solid #333639;border-radius:6px;background:#000;color:inherit;font:inherit}
 textarea{min-height:80px}button,.button{display:inline-block;margin-top:16px;padding:9px 18px;border:0;border-radius:999px;background:#eff3f4;color:#0f1419;font:inherit;font-weight:700;cursor:pointer;text-decoration:none}
 button.secondary{background:none;border:1px solid #536471;color:#e7e9ea}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.suffix{white-space:nowrap;color:#71767b}
-code{background:#16181c;padding:1px 5px;border-radius:4px}ul{padding-left:20px}footer{margin-top:40px;font-size:13px}`;
+code{background:#16181c;padding:1px 5px;border-radius:4px}.instance{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;padding:12px 16px}
+.instance .button{margin:0;flex:none}.tag{font-size:12px;border:1px solid #2f3336;border-radius:999px;padding:0 8px;color:#71767b;font-weight:400}.error{margin-top:8px}ul{padding-left:20px}footer{margin-top:40px;font-size:13px}`;
 
 function page(title: string, body: string, status = 200): Response {
 	return new Response(
@@ -205,6 +206,45 @@ const STATE_TEXT: Record<string, string> = {
 	approved: "Approved. The address points at your server; it shows as live once it answers as a Xitter instance with rules.",
 	live: "Live.",
 };
+
+// every instance someone can join: the shared list, plus hosted ones that are
+// up but not on it yet. This one first, then by name
+async function instances(): Promise<{ id: string; name: string; source: string | null; listed: boolean }[]> {
+	const out = listed()
+		.filter((i) => i.state === "active")
+		.map((i) => ({ id: i.id, name: i.name, source: i.source_url, listed: true }));
+	for (const h of await sql`select name, source_url from hosted_instances where state = 'live'`)
+		if (!out.some((i) => i.id === fqdn(h.name))) out.push({ id: fqdn(h.name), name: h.name, source: h.source_url, listed: false });
+	return out.sort((a, b) => (a.id === INSTANCE_ID ? -1 : b.id === INSTANCE_ID ? 1 : a.name.localeCompare(b.name, "en")));
+}
+
+async function welcome(error = ""): Promise<Response> {
+	const list = await instances();
+	const card = (i: (typeof list)[number]) => `<div class="card instance"><div><b>${esc(i.name)}</b>${i.id === INSTANCE_ID ? ` <span class="tag">main</span>` : ""}${i.listed ? "" : ` <span class="tag">new</span>`}
+<div class="dim">${esc(i.id)}${i.source && !/github\.com\/Xittered\/xitter\/?$/i.test(i.source) ? ` · <a href="${esc(i.source)}">fork</a>` : ""}</div></div><a class="button" href="https://${esc(i.id)}/">Open</a></div>`;
+	return page(
+		"Xitter",
+		`<h1>Xitter</h1>
+<p>The X web app on servers people run themselves. Pick one, or run your own.</p>
+<h2>Instances</h2>
+${list.map(card).join("\n")}
+<form method="get" action="/go" class="row" style="margin-top:12px"><input name="to" placeholder="Go to another instance: xit.example.org" maxlength="253" style="flex:1"><button style="margin:0">Go</button></form>
+${error ? `<p class="error">${esc(error)}</p>` : ""}
+<h2>Run your own</h2>
+<p>Get <b>yourname.${esc(HOSTING_DOMAIN)}</b> for your server, or use your own domain with the <a href="${esc(settings().source_url)}">source</a>.</p>
+<p><a class="button" href="/apply">Apply for a name</a></p>
+<h2>Staff</h2>
+<p><a href="${PUBLIC_ORIGIN}/?staff=1">Sign in</a> · <a href="${PUBLIC_ORIGIN}/admin">Admin panel</a></p>`,
+	);
+}
+
+// only to instances someone could also pick from the list, so this can't
+// send people anywhere else
+async function go(url: URL): Promise<Response> {
+	const to = (url.searchParams.get("to") ?? "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+	if (!(await instances()).some((i) => i.id === to)) return welcome(to ? `${to} isn't on the list of instances.` : "Type an instance's address.");
+	return redirect(`https://${to}/`);
+}
 
 function intro() {
 	return `<h1>Host your instance on ${esc(HOSTING_DOMAIN)}</h1>
@@ -237,15 +277,17 @@ export async function applySite(req: Request, url: URL): Promise<Response> {
 		const token = random();
 		await sql`delete from hosting_sessions where created_at < now() - interval '30 days'`;
 		await sql`insert into hosting_sessions (token_hash, user_id, csrf) values (${digest(token)}, ${t.user_id}::bigint, ${random()})`;
-		return redirect("/", [`apply_session=${token}; ${COOKIE}; Max-Age=${30 * 86400}`, `apply_state=; ${COOKIE}; Max-Age=0`]);
+		return redirect("/apply", [`apply_session=${token}; ${COOKIE}; Max-Age=${30 * 86400}`, `apply_state=; ${COOKIE}; Max-Age=0`]);
 	}
-	if (p !== "/" && p !== "/apply" && p !== "/withdraw" && p !== "/check" && p !== "/logout") return page("Not found", `<h1>Not found</h1><p><a href="/">Back</a></p>`, 404);
+	if (p === "/" && req.method === "GET") return welcome();
+	if (p === "/go") return go(url);
+	if (p !== "/apply" && p !== "/withdraw" && p !== "/check" && p !== "/logout") return page("Not found", `<h1>Not found</h1><p><a href="/">Back</a></p>`, 404);
 
 	const me = await applicant(req);
 	if (req.method === "POST") {
 		const f = await req.formData().catch(() => undefined);
 		const value = (k: string) => String(f?.get(k) ?? "");
-		if (!me || value("csrf") !== me.csrf || req.headers.get("origin") !== SITE_ORIGIN) return page("Out of date", `<h1>That form is out of date</h1><p><a href="/">Reload</a> and try again.</p>`, 403);
+		if (!me || value("csrf") !== me.csrf || req.headers.get("origin") !== SITE_ORIGIN) return page("Out of date", `<h1>That form is out of date</h1><p><a href="/apply">Reload</a> and try again.</p>`, 403);
 		if (p === "/logout") {
 			await sql`delete from hosting_sessions where token_hash = ${digest(cookie(req, "apply_session")!)}`;
 			return redirect("/", [`apply_session=; ${COOKIE}; Max-Age=0`]);
@@ -257,11 +299,13 @@ export async function applySite(req: Request, url: URL): Promise<Response> {
 			await sql`update hosted_instances set state = 'withdrawn', dns_record_id = null, updated_at = now() where id = ${mine.id}::bigint`;
 		}
 		if (p === "/check" && mine && ["approved", "live"].includes(mine.state) && !(mine.last_check_at && Date.now() - new Date(mine.last_check_at).getTime() < 60_000)) await runCheck(mine.id);
-		return redirect("/");
+		return redirect("/apply");
 	}
 
-	if (!me) return page("Apply", `${intro()}<p><a class="button" href="/login">Sign in with your ${esc(new URL(PUBLIC_ORIGIN).host)} account</a></p>`);
-	const signedIn = `<form method="post" action="/logout" class="row dim"><input type="hidden" name="csrf" value="${esc(me.csrf)}">Signed in as @${esc(me.screen_name)} <button class="secondary" style="margin:0">Sign out</button></form>`;
+	if (p !== "/apply") return page("Not found", `<h1>Not found</h1><p><a href="/">Back</a></p>`, 404);
+	const back = `<p><a href="/">← All instances</a></p>`;
+	if (!me) return page("Apply", `${back}${intro()}<p><a class="button" href="/login">Sign in with your ${esc(new URL(PUBLIC_ORIGIN).host)} account</a></p>`);
+	const signedIn = `${back}<form method="post" action="/logout" class="row dim"><input type="hidden" name="csrf" value="${esc(me.csrf)}">Signed in as @${esc(me.screen_name)} <button class="secondary" style="margin:0">Sign out</button></form>`;
 	const [mine] = await sql`select id::text, name, target, state, last_check, last_check_at from hosted_instances where user_id = ${me.id}::bigint and state in ('pending', 'approved', 'live')`;
 	const [last] = mine ? [] : await sql`select name, state, review_note from hosted_instances where user_id = ${me.id}::bigint order by updated_at desc limit 1`;
 	if (mine) {
@@ -306,5 +350,5 @@ async function apply(me: Applicant, f: FormData): Promise<Response> {
 		// the unique indexes: someone took the name, or this account already has one
 		return again(`${fqdn(v.name)} is taken, or you already have an application.`);
 	}
-	return redirect("/");
+	return redirect("/apply");
 }
