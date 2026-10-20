@@ -1,5 +1,5 @@
 // Community instances under one domain: someone with an account here applies on
-// apply.<HOSTING_DOMAIN> for name.<HOSTING_DOMAIN>, staff review it in the admin
+// my.<HOSTING_DOMAIN> (HOSTING_SITE) for name.<HOSTING_DOMAIN>, staff review it in the admin
 // panel, and approving it creates one DNS-only record pointing at their server.
 // Revoking deletes the record. Off unless HOSTING_DOMAIN, HOSTING_CF_TOKEN and
 // HOSTING_CF_ZONE are set (a Cloudflare token that can edit that zone's DNS).
@@ -28,8 +28,11 @@ export const HOSTING_DOMAIN = (process.env.HOSTING_DOMAIN ?? "").toLowerCase();
 const CF_TOKEN = process.env.HOSTING_CF_TOKEN ?? "";
 const CF_ZONE = process.env.HOSTING_CF_ZONE ?? "";
 export const HOSTING_ON = !!(HOSTING_DOMAIN && CF_TOKEN && CF_ZONE);
-export const APPLY_HOST = `apply.${HOSTING_DOMAIN}`;
-const APPLY_ORIGIN = `https://${APPLY_HOST}`;
+export const SITE_HOST = `${(process.env.HOSTING_SITE ?? "my").toLowerCase()}.${HOSTING_DOMAIN}`;
+// where the site was first; it sends people on
+const OLD_HOST = `apply.${HOSTING_DOMAIN}`;
+export const isHostingSite = (host: string) => host === SITE_HOST || host === OLD_HOST;
+const SITE_ORIGIN = `https://${SITE_HOST}`;
 
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 const random = () => randomBytes(32).toString("base64url");
@@ -152,12 +155,12 @@ export async function hostingHandoff(url: URL, viewer: Viewer | undefined): Prom
 	const state = url.searchParams.get("state") ?? "";
 	if (!HOSTING_ON || !/^[A-Za-z0-9_-]{43}$/.test(state)) return new Response("not found", { status: 404 });
 	if (!viewer || viewer.instance) {
-		return page("Sign in first", `<h1>Sign in first</h1><p>Sign in to <a href="${PUBLIC_ORIGIN}/">${esc(new URL(PUBLIC_ORIGIN).host)}</a> with your account, then come back to <a href="${APPLY_ORIGIN}/">${esc(APPLY_HOST)}</a> and press Sign in again.</p>`);
+		return page("Sign in first", `<h1>Sign in first</h1><p>Sign in to <a href="${PUBLIC_ORIGIN}/">${esc(new URL(PUBLIC_ORIGIN).host)}</a> with your account, then come back to <a href="${SITE_ORIGIN}/">${esc(SITE_HOST)}</a> and press Sign in again.</p>`);
 	}
 	const ticket = random();
 	await sql`delete from hosting_tickets where created_at < now() - interval '2 minutes'`;
 	await sql`insert into hosting_tickets (ticket_hash, user_id, state) values (${digest(ticket)}, ${viewer.id}::bigint, ${state})`;
-	return redirect(`${APPLY_ORIGIN}/callback?ticket=${ticket}&state=${state}`);
+	return redirect(`${SITE_ORIGIN}/callback?ticket=${ticket}&state=${state}`);
 }
 
 type Applicant = { id: string; screen_name: string; csrf: string; status: string };
@@ -217,6 +220,7 @@ function intro() {
 
 export async function applySite(req: Request, url: URL): Promise<Response> {
 	const p = url.pathname;
+	if (url.hostname !== SITE_HOST) return new Response(null, { status: 301, headers: { location: `${SITE_ORIGIN}${p}${url.search}` } });
 	const ip = requestIp(req) ?? "unknown";
 	if (p === "/login") {
 		if (!hit("auth", ip).ok) return page("Slow down", "<h1>Too many tries</h1><p>Wait a few minutes.</p>", 429);
@@ -241,7 +245,7 @@ export async function applySite(req: Request, url: URL): Promise<Response> {
 	if (req.method === "POST") {
 		const f = await req.formData().catch(() => undefined);
 		const value = (k: string) => String(f?.get(k) ?? "");
-		if (!me || value("csrf") !== me.csrf || req.headers.get("origin") !== APPLY_ORIGIN) return page("Out of date", `<h1>That form is out of date</h1><p><a href="/">Reload</a> and try again.</p>`, 403);
+		if (!me || value("csrf") !== me.csrf || req.headers.get("origin") !== SITE_ORIGIN) return page("Out of date", `<h1>That form is out of date</h1><p><a href="/">Reload</a> and try again.</p>`, 403);
 		if (p === "/logout") {
 			await sql`delete from hosting_sessions where token_hash = ${digest(cookie(req, "apply_session")!)}`;
 			return redirect("/", [`apply_session=; ${COOKIE}; Max-Age=0`]);

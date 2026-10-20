@@ -3,7 +3,7 @@
 // bun scripts/try-hosting.ts [user] [password]   (never approves: that makes DNS)
 const origin = process.env.ORIGIN ?? "http://localhost:3000";
 const domain = process.env.HOSTING_DOMAIN ?? "xitter.space";
-const applyHost = `apply.${domain}`;
+const applyHost = `${process.env.HOSTING_SITE ?? "my"}.${domain}`;
 const [user = "tester1", password = "testpass123"] = process.argv.slice(2);
 let failed = 0;
 const check = (what: string, ok: boolean) => {

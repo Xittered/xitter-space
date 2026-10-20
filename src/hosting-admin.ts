@@ -4,7 +4,7 @@
 
 import { type Action, AdminError, audit, idOf } from "./admin";
 import { sql } from "./db";
-import { HOSTING_DOMAIN, HOSTING_ON, HostingError, cf, fqdn, recordsFor, runCheck } from "./hosting";
+import { HOSTING_DOMAIN, HOSTING_ON, HostingError, SITE_HOST, cf, fqdn, recordsFor, runCheck } from "./hosting";
 
 // Cloudflare failures read as admin errors in the panel
 const wrap = (run: Action["run"]): Action["run"] => async (a, b, req) => {
@@ -30,6 +30,7 @@ export const hostingActions: Record<string, Action> = HOSTING_ON
 				role: "moderator",
 				run: async () => ({
 					domain: HOSTING_DOMAIN,
+					site: SITE_HOST,
 					instances: await sql`select h.id::text, h.name, h.target, h.record_type, h.about, h.source_url, h.contact, h.state, h.review_note, h.public_key,
 						h.last_check, h.last_check_at, h.created_at, h.reviewed_at, u.id::text as user_id, u.screen_name, r.screen_name as reviewed_by
 						from hosted_instances h join users u on u.id = h.user_id left join users r on r.id = h.reviewed_by

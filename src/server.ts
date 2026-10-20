@@ -54,7 +54,7 @@ import { emailRoute } from "./email-address";
 import { embedImage, linkPreview, oembed } from "./embeds";
 import { noteAppealsRoute } from "./note-appeals";
 import { decorCatalog, decorFor, decorRoute, decorShop, steamFile } from "./decor";
-import { APPLY_HOST, HOSTING_ON, applySite, hostingHandoff, startHostingChecks } from "./hosting";
+import { HOSTING_ON, applySite, isHostingSite, hostingHandoff, startHostingChecks } from "./hosting";
 
 const MIME: Record<string, string> = {
 	js: "text/javascript; charset=utf-8",
@@ -286,7 +286,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	const url = new URL(req.url);
 	const p = url.pathname;
 	// the hosting application site (hosting.ts) shares this process, not its cookies
-	if (HOSTING_ON && url.hostname === APPLY_HOST) return applySite(req, url);
+	if (HOSTING_ON && isHostingSite(url.hostname)) return applySite(req, url);
 	if (p === "/federation/superadmin/accept") return acceptTicket(req, requestIp(req) ?? "unknown");
 	if (p.startsWith("/i/xitter/decoration/")) return (await decorationFile(url)) ?? new Response("not found", { status: 404 });
 	if (req.method !== "GET" && req.method !== "HEAD" && req.headers.has("cookie")) {

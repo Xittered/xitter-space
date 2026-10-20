@@ -777,7 +777,7 @@ const RENDER = {
 		const pill = (s) => '<span class="pill' + (["rejected", "revoked"].includes(s) ? " suspended" : "") + '">' + esc(s) + "</span>";
 		const entry = (i) => JSON.stringify({ id: i.name + "." + h.domain, name: i.name, source_url: i.source_url || "https://github.com/Xittered/xitter", public_key: i.public_key, state: "active" }, null, "\t");
 		main.innerHTML = "<h1>Hosted instances</h1>" +
-			'<p class="dim">People apply on <a target="_blank" href="https://apply.' + esc(h.domain) + '">apply.' + esc(h.domain) + "</a> for name." + esc(h.domain) +
+			'<p class="dim">People apply on <a target="_blank" href="https://' + esc(h.site) + '">' + esc(h.site) + "</a> for name." + esc(h.domain) +
 			". Approving creates a DNS-only record pointing at their server; it turns live once it answers as a Xitter instance with rules. Revoking deletes the record. The instance list (instances.json) is still a pull request.</p>" +
 			(h.instances.length
 				? h.instances.map((i) => '<div class="box" style="margin-bottom:12px"><h2>' + esc(i.name + "." + h.domain) + " " + pill(i.state) + "</h2>" +
