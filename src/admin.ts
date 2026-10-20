@@ -405,10 +405,14 @@ const ACTIONS: Record<string, Action> = {
 			const id = idOf(b.id);
 			await guard(a, id, true);
 			const limits: Record<string, [string, number]> = { name: ["name", 50], screen_name: ["screen_name", 50], bio: ["bio", 160], location: ["location", 30], website: ["website", 100], based_in: ["based_in_override", 50] };
+			const [old] = await sql`select screen_name from users where id = ${id}::bigint`;
 			const changes: Record<string, string | null> = {};
 			for (const [field, [column, max]] of Object.entries(limits)) {
 				if (typeof b[field] !== "string") continue;
 				const value = b[field].trim();
+				// the form always sends the handle; one set before the handle rules
+				// (a symbol in it) must not block saving the rest of the profile
+				if (field === "screen_name" && value === old?.screen_name) continue;
 				if ([...value].length > max) throw new AdminError(`${field} is at most ${max} characters.`);
 				if (field === "screen_name" && staffHandleProblem(value)) throw new AdminError(staffHandleProblem(value)!);
 				if (field === "name" && !value) throw new AdminError("Name can't be blank.");
@@ -429,7 +433,6 @@ const ACTIONS: Record<string, Action> = {
 				if (taken) throw new AdminError("That handle is taken.");
 				if (await handleHeld(changes.screen_name, id)) throw new AdminError("That handle looks too much like another account's.");
 			}
-			const [old] = await sql`select screen_name from users where id = ${id}::bigint`;
 			await sql`update users set ${sql(changes)} where id = ${id}::bigint`;
 			if (changes.screen_name && changes.screen_name !== old.screen_name)
 				await sql`insert into username_changes (user_id, old_name, new_name) values (${id}::bigint, ${old.screen_name}, ${changes.screen_name})`;
