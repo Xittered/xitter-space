@@ -34,6 +34,7 @@ import { hashflagActions } from "./hashflags";
 import { switchActions } from "./feature-switches";
 import { AFFILIATION_LIMIT } from "./org-manage";
 import { staffGate } from "./staff-access";
+import { countryCode, countryName } from "./countries";
 import { GRANTABLE, PERMISSIONS, RANK, type Role, allows, mayRun, permissionOf, rolePermissions } from "./staff-permissions";
 
 export class AdminError extends Error {
@@ -375,7 +376,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "support",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.based_in_override, u.country, u.count_overrides, u.decor, u.notes_writer, u.never_sensitive, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance,
+			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.based_in_override, u.country, u.signup_country, u.count_overrides, u.decor, u.notes_writer, u.never_sensitive, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance,
 				(select coalesce(json_agg(ub.badge_id::text order by ub.position), '[]') from user_badges ub where ub.user_id = u.id) as badge_ids,
 				(select count(*)::int from sessions s where s.user_id = u.id) as sessions,
 				(select count(*)::int from api_tokens t where t.user_id = u.id) as api_tokens,
@@ -393,6 +394,7 @@ const ACTIONS: Record<string, Action> = {
 				join login_events other on other.ip = mine.ip and other.user_id <> mine.user_id and other.created_at > now() - interval '90 days'
 				join users u on u.id = other.user_id
 				where mine.user_id = ${id}::bigint and mine.ip is not null and mine.created_at > now() - interval '90 days' limit 20`;
+			u.joined_from = u.signup_country ? (countryName(u.signup_country) ?? u.signup_country) : "";
 			return { user: u, invited, log, alts, strikes, next_step: ladder.length ? ladder[Math.min(strikes + 1, ladder.length) - 1] : 0 };
 		},
 	},
@@ -413,6 +415,13 @@ const ACTIONS: Record<string, Action> = {
 				if (field === "website" && value && !/^https?:\/\/\S+$/.test(value)) throw new AdminError("Website must be an http or https address.");
 				// a blank "based in" goes back to the detected region
 				changes[column] = field === "based_in" && !value ? null : value;
+			}
+			// the country after the date joined in About this account; blank hides it
+			if (typeof b.joined_from === "string") {
+				const value = b.joined_from.trim();
+				const code = value ? countryCode(value) : null;
+				if (code === undefined) throw new AdminError("Joined from takes a country name or its two-letter code, like SE.");
+				changes.signup_country = code;
 			}
 			if (!Object.keys(changes).length) return {};
 			if (changes.screen_name) {

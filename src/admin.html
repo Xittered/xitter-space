@@ -1301,6 +1301,7 @@ async function renderUser(main, id) {
 			.map(([k, l, v]) => '<div class="field"><label>' + l + '</label><input data-f="' + k + '" value="' + esc(v) + '"' + (canHere("updateUser") ? "" : " disabled") + "></div>").join("") +
 		'<div class="field"><label>Bio</label><textarea data-f="bio"' + (canHere("updateUser") ? "" : " disabled") + ">" + esc(u.bio) + "</textarea></div>" +
 		'<div class="field"><label>Account based in (About this account; blank shows the detected region' + (u.country ? ", " + esc(u.country) : "") + ')</label><input data-f="based_in" maxlength="50" value="' + esc(u.based_in_override ?? "") + '"' + (canHere("updateUser") ? "" : " disabled") + "></div>" +
+		'<div class="field"><label>Joined from (after the date joined in About this account; a country or its code, like SE; blank hides it)</label><input data-f="joined_from" maxlength="60" value="' + esc(u.joined_from ?? "") + '"' + (canHere("updateUser") ? "" : " disabled") + "></div>" +
 		(canHere("updateUser") ? '<button class="btn primary" id="save">Save profile</button>' : "") +
 		(canHere("setUserCounts") ? '<h2 style="margin-top:20px">Shown counts</h2><p class="dim small">Blank shows the real number. Only the number on the profile changes, not the lists.</p><div class="row">' +
 			["followers", "following"].map((k) => '<label class="small" style="flex:1">' + k + '<input data-count="' + k + '" type="number" min="0" value="' + ((u.count_overrides || {})[k] ?? "") + '"></label>').join("") +
