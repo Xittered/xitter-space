@@ -12,6 +12,7 @@
 
 import { recordSignIn } from "./login-history";
 import { SECURE, type Viewer, clearedCookies, logout, parseCookies, sessionCookies } from "./auth";
+import { loadLook, nightModeCookies } from "./themes/api";
 import { sql } from "./db";
 import { avatarUrl } from "./model";
 import { settings } from "./settings";
@@ -91,7 +92,7 @@ export async function accountsRoute(method: string, path: string, viewer: Viewer
 		const target = others.find((s) => s.userId === userId);
 		if (!target) return Response.json({ errors: [{ code: 32, message: "That account isn't signed in here." }] }, { status: 400 });
 		const rest = [viewer.token, ...others.filter((s) => s !== target).map((s) => s.token)];
-		return withCookies({}, [...sessionCookies(target), multiCookie(rest)]);
+		return withCookies({}, [...sessionCookies(target), multiCookie(rest), ...nightModeCookies(await loadLook(target.userId))]);
 	}
 	if (path === "/1.1/account/multi/clean.json") {
 		return withCookies({}, [multiCookie((await live(multiTokens(req), viewer.id)).map((s) => s.token))]);
@@ -104,7 +105,7 @@ export async function accountsRoute(method: string, path: string, viewer: Viewer
 		await logout(viewer.token);
 		const [next, ...rest] = await live(multiTokens(req), viewer.id);
 		if (!next) return withCookies({ status: "ok" }, [...clearedCookies(), multiCookie([])]);
-		return withCookies({ status: "ok" }, [...sessionCookies(next), multiCookie(rest.map((s) => s.token))]);
+		return withCookies({ status: "ok" }, [...sessionCookies(next), multiCookie(rest.map((s) => s.token)), ...nightModeCookies(await loadLook(next.userId))]);
 	}
 	return undefined;
 }

@@ -12,6 +12,7 @@
 // The first screen is the signed-in client's own sign-in dialog.
 
 import { signInCookies } from "./accounts";
+import { loadLook, nightModeCookies } from "./themes/api";
 import { login, startSession } from "./auth";
 import { answerChallenge, startChallenge } from "./two-factor";
 import { sql } from "./db";
@@ -25,6 +26,11 @@ import { checkSignupCode, sendSignupCode } from "./email-address";
 import { settings } from "./settings";
 import { hit, used } from "./ratelimit";
 import { requestCountry, requestIp } from "./login-history";
+
+async function appendSignIn(headers: Headers, req: Request, session: { token: string; csrf: string; userId: string }) {
+	for (const c of await signInCookies(req, session)) headers.append("set-cookie", c);
+	for (const c of nightModeCookies(await loadLook(session.userId))) headers.append("set-cookie", c);
+}
 
 const load = async (name: string): Promise<Message[]> => fromJson(await Bun.file(new URL(`./jf/${name}.json`, import.meta.url)).json());
 // Takes out of a screen the parts that hold any of these texts. With `part` (a
@@ -269,7 +275,7 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 			const session = answered.session;
 			const [user] = await sql`select screen_name from users where id = ${session.userId}::bigint`;
 			const headers = new Headers();
-			for (const c of await signInCookies(req, session)) headers.append("set-cookie", c);
+			await appendSignIn(headers, req, session);
 			return respond(fill(templates.success, { user_id: session.userId, username: user.screen_name }), false, headers);
 		}
 		const s = await pending(token);
@@ -290,7 +296,7 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 			await sql`delete from signup_sessions where token = ${token}::uuid`;
 			const session = await startSession(userId);
 			const headers = new Headers();
-			for (const c of await signInCookies(req, session)) headers.append("set-cookie", c);
+			await appendSignIn(headers, req, session);
 			headers.append("set-cookie", "xitter_invite=; Path=/; Max-Age=0");
 			return respond(fill(templates.success, { user_id: userId, username: p.screenName }), false, headers);
 		}
@@ -344,7 +350,7 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 		await sql`delete from signup_sessions where token = ${token}::uuid`;
 		const session = await login(String(f.username ?? s.username), String(f.password ?? ""));
 		const headers = new Headers();
-		for (const c of await signInCookies(req, session!)) headers.append("set-cookie", c);
+		await appendSignIn(headers, req, session!);
 		headers.append("set-cookie", "xitter_invite=; Path=/; Max-Age=0");
 		return respond(fill(templates.success, { user_id: session!.userId, username: String(f.username ?? s.username) }), false, headers);
 	}
@@ -370,7 +376,7 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 		}
 		const [user] = await sql`select screen_name from users where id = ${session.userId}::bigint`;
 		const headers = new Headers();
-		for (const c of await signInCookies(req, session)) headers.append("set-cookie", c);
+		await appendSignIn(headers, req, session);
 		return respond(fill(templates.success, { user_id: session.userId, username: user.screen_name }), false, headers);
 	}
 	return undefined;

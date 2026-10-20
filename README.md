@@ -66,10 +66,25 @@ copy during setup, and it stays on that machine.
 - Branded hashtags (X's branded likes and hashmoji, Admin > Branded
   hashtags): for a set time, liking a post with the hashtag plays a custom
   Lottie animation, and the hashtag shows an emoji (optionally with hashfetti)
+- Import from X (off by default; Admin > Settings, feature switches, then
+  Settings > Your account > Import from X): upload the archive x.com makes
+  (up to `ARCHIVE_MAX_MB`, default 1024) and its posts, threads, photos,
+  videos and profile come over with their original dates and X ids. Imported
+  posts pass the same length limit, automod and blocked phrases as new ones
+  (those that don't are left out and counted) and count toward the post rate
+  limit, so the import waits on it. Retweets and likes stay behind, mentions
+  stay as text, imported posts aren't sent to other instances, and an upload
+  that isn't imported within a day is deleted. By default only accounts a
+  week old can import, and staff approve each import first (Admin > Settings,
+  Import from X)
 - Polls with a photo on each choice
 - Previews when a public post or profile is shared in other apps (Discord,
   Slack, iMessage…): OpenGraph and Twitter card tags and oEmbed, for active,
   unprotected accounts only. Admin > Settings > Features switches them off
+- Dim (X dropped it from Display settings) and custom themes, including
+  gradients, per-token colours, and Google Fonts served from this instance;
+  Settings > Display or /account/theme. Organisation profile decor keeps its
+  own look on the profile column.
 - Staff labels under posts, as X shows them: Visibility limited (also kept out
   of For you and search), Misleading, Stay informed, Get the latest, Legally
   required notice; staff can also set the counts a post or profile shows
@@ -169,6 +184,12 @@ any variable from the Configuration table can be added to `.env`.
 `FETCH_CLIENT=0` skips the first-start download; `docker compose exec app bun
 scripts/fetch-client.ts --latest` re-pins the build.
 
+The image has a health check: `/healthz` answers `ok` while the server runs
+and reaches its database, and `docker compose ps` shows the app as
+`unhealthy` when it doesn't. Docker doesn't restart unhealthy containers by
+itself; a watcher such as
+[autoheal](https://github.com/willfarrell/docker-autoheal) can.
+
 For an optional PgBouncer connection pool, add `DB_HOST=pool` and
 `DB_PORT=6432` to `.env`, then start with
 `docker compose --profile sqlpool up -d --build`. PgBouncer uses session pooling
@@ -212,6 +233,8 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `SMTP_URL` | unset | Own mail server for sign-up codes, password resets and notifications: `smtp://user:pass@host:587` (STARTTLS) or `smtps://user:pass@host:465`; percent-encode `@` in the user; the host must be the name on the server's certificate |
 | `RESEND_API_KEY` | unset | Resend key, used when `SMTP_URL` isn't set or refused a mail; without either nothing is sent |
 | `MAIL_FROM` | `Xitter <noreply@xit.chococat.lol>` | Sender of that mail (its domain must be the mail server's, or verified in Resend) |
+| `ARCHIVE_DIR`, `ARCHIVE_MAX_MB` | `data/imports`, `1024` | Where uploaded X archives wait while they import, and the largest accepted |
+| `ARCHIVE_MAX_JSON_MB` | `64` | Largest JSON file in an archive (`tweets.js` and its parts) an import reads; it's parsed in memory |
 | `KLIPY_API_KEY` | unset | GIF search through [Klipy](https://klipy.com) (see `src/gifs.ts`); without it or `TENOR_API_KEY` the GIF button is hidden |
 | `TENOR_API_KEY` | unset | GIF search through Tenor's v2 API instead, used when `KLIPY_API_KEY` isn't set |
 
@@ -356,3 +379,9 @@ expiry, write paths and request limits against one.
 [AGPL-3.0](LICENSE). If you run a modified instance for other people, you must
 offer them its source; the signed-out home page links to it (`SOURCE_URL`, or the admin
 panel's Settings).
+
+## Stars
+
+[![GitHub stars](https://img.shields.io/github/stars/Xittered/xitter?style=for-the-badge&logo=github&label=stars)](https://github.com/Xittered/xitter/stargazers)
+
+[![Star history](https://api.star-history.com/svg?repos=Xittered/xitter&type=Date)](https://star-history.com/#Xittered/xitter&Date)

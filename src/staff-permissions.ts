@@ -26,6 +26,7 @@ export const PERMISSIONS: Record<string, Permission> = {
 	media: { group: "Moderation", label: "Delete uploaded media", role: "moderator", actions: ["deleteMedia"] },
 	decor: { group: "Moderation", label: "Reset profile decor", role: "moderator", actions: ["resetDecor"] },
 	automod_scan: { group: "Moderation", label: "Scan old posts and profiles with automod", role: "moderator", actions: ["automodScan"] },
+	archive_imports: { group: "Moderation", label: "Approve and decline imports from X archives", role: "moderator", actions: ["archiveImports", "decideArchiveImport"] },
 	release_identities: { group: "Moderation", label: "Release held handles, emails and addresses", role: "admin", actions: ["releaseIdentity"] },
 
 	staff_notes: { group: "Accounts", label: "Write staff notes", role: "support", actions: ["addStaffNote"] },

@@ -17,7 +17,7 @@ import { sql } from "./db";
 import { flagValue, unknownFlag } from "./flags";
 import { isId, newId } from "./ids";
 import { createInvite, staffHandleProblem } from "./invites";
-import { retireAccount } from "./held";
+import { forgetHeld, handleHeld, retireAccount } from "./held";
 import { activeStrikes, shutOut } from "./moderation";
 import { REASONS } from "./reports";
 import { FEATURES, type Feature, type SignupMode, allSettings, setSetting, settings } from "./settings";
@@ -418,11 +418,13 @@ const ACTIONS: Record<string, Action> = {
 			if (changes.screen_name) {
 				const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${changes.screen_name}) and id <> ${id}::bigint`;
 				if (taken) throw new AdminError("That handle is taken.");
+				if (await handleHeld(changes.screen_name, id)) throw new AdminError("That handle looks too much like another account's.");
 			}
 			const [old] = await sql`select screen_name from users where id = ${id}::bigint`;
 			await sql`update users set ${sql(changes)} where id = ${id}::bigint`;
 			if (changes.screen_name && changes.screen_name !== old.screen_name)
 				await sql`insert into username_changes (user_id, old_name, new_name) values (${id}::bigint, ${old.screen_name}, ${changes.screen_name})`;
+			if (changes.screen_name) forgetHeld();
 			await audit(a, "edit_profile", id, changes);
 			return {};
 		},
@@ -581,12 +583,14 @@ const ACTIONS: Record<string, Action> = {
 			const name = String(b.name ?? "").trim() || screenName;
 			if (!/^[A-Za-z0-9_]{4,15}$/.test(screenName)) throw new AdminError("Handles are 4 to 15 letters, digits or underscores.");
 			if (superadminNameHere(screenName)) throw new AdminError("That handle is reserved.");
+			if (await handleHeld(screenName)) throw new AdminError("That handle looks too much like another account's.");
 			const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${screenName})`;
 			if (taken) throw new AdminError("That handle is taken.");
 			const password = randomPassword();
 			const id = newId();
 			await sql`insert into users (id, screen_name, name, password_hash, verified_type)
 				values (${id}::bigint, ${screenName}, ${name}, ${await Bun.password.hash(password)}, 'business')`;
+			forgetHeld();
 			await audit(a, "create_org", id, { screen_name: screenName });
 			return { id, password };
 		},
