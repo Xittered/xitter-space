@@ -388,6 +388,18 @@ expiry, write paths and request limits against one.
   headless Edge and takes screenshots (uses the browser profile
   `scripts/probe.sh` leaves signed in).
 
+## Donate
+
+If Xitter is useful to you, crypto donations keep the main instance running.
+Send only the coin on the network listed for each address.
+
+| Coin | Network | Address |
+| --- | --- | --- |
+| SOL | Solana | `5nmzmrxFrvacVuQhNPVFJzbbkAgRMefWsWmPSoft1cJF` |
+| BTC | Bitcoin | `bc1qj2kedn4kqavwg2r5z5n4cldtx09gy2recswak9` |
+| ETH | Ethereum | `0x5A7cFbf7F877BE5b6DB4aE248178761E68129881` |
+| USDT | Tron (TRC20) | `THvC2xDHpF8Yr9s6jhHCXYGDya9ZnvjG79` |
+
 ## License
 
 [AGPL-3.0](LICENSE). If you run a modified instance for other people, you must

@@ -55,6 +55,25 @@ export async function signInCookies(req: Request, session: Session): Promise<str
 	return [...sessionCookies(session), multiCookie(others.slice(0, max() - 1).map((s) => s.token))];
 }
 
+// The other accounts signed in on this browser, for pages that offer a switch
+// (the OAuth consent page)
+export async function otherAccounts(req: Request, viewer: Viewer): Promise<{ id: string; screen_name: string; name: string; avatar_url: string | null }[]> {
+	const others = await live(multiTokens(req), viewer.id);
+	if (!others.length) return [];
+	const users = await sql`select id::text, screen_name, name, avatar_url from users where id = any(${sql.array(others.map((s) => s.userId), "INT8")})`;
+	return others.map((s) => users.find((u: { id: string }) => u.id === s.userId)).filter(Boolean);
+}
+
+// Cookies that make userId the active account and keep the viewer signed in
+// behind it, or undefined when userId isn't signed in on this browser.
+export async function switchCookies(req: Request, viewer: Viewer, userId: string): Promise<string[] | undefined> {
+	const others = await live(multiTokens(req), viewer.id);
+	const target = others.find((s) => s.userId === userId);
+	if (!target) return undefined;
+	const rest = [viewer.token, ...others.filter((s) => s !== target).map((s) => s.token)];
+	return [...sessionCookies(target), multiCookie(rest), ...nightModeCookies(await loadLook(target.userId))];
+}
+
 function withCookies(body: unknown, cookies: string[]): Response {
 	const headers = new Headers({ "content-type": "application/json" });
 	for (const c of cookies) headers.append("set-cookie", c);
@@ -87,12 +106,9 @@ export async function accountsRoute(method: string, path: string, viewer: Viewer
 
 	if (path === "/1.1/account/multi/switch.json") {
 		const f = await req.formData().catch(() => undefined);
-		const userId = String(f?.get("user_id") ?? "");
-		const others = await live(multiTokens(req), viewer.id);
-		const target = others.find((s) => s.userId === userId);
-		if (!target) return Response.json({ errors: [{ code: 32, message: "That account isn't signed in here." }] }, { status: 400 });
-		const rest = [viewer.token, ...others.filter((s) => s !== target).map((s) => s.token)];
-		return withCookies({}, [...sessionCookies(target), multiCookie(rest), ...nightModeCookies(await loadLook(target.userId))]);
+		const cookies = await switchCookies(req, viewer, String(f?.get("user_id") ?? ""));
+		if (!cookies) return Response.json({ errors: [{ code: 32, message: "That account isn't signed in here." }] }, { status: 400 });
+		return withCookies({}, cookies);
 	}
 	if (path === "/1.1/account/multi/clean.json") {
 		return withCookies({}, [multiCookie((await live(multiTokens(req), viewer.id)).map((s) => s.token))]);
