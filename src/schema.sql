@@ -1503,3 +1503,6 @@ create table if not exists hosting_sessions (
 	csrf text not null,
 	created_at timestamptz not null default now()
 );
+alter table posts add column if not exists conversation_card jsonb;
+
+alter table posts add column if not exists conversation_card_post_id bigint references posts (id) on delete set null;

@@ -4,6 +4,7 @@
 // as images, so they animate without a video conversion step. Videos are
 // converted by video.ts.
 
+import { conversationVideoMap } from "./conversation-cards";
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
@@ -641,11 +642,20 @@ async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefi
 	return !served.post && served.owner === viewer.id ? PRIVATE : undefined;
 }
 
+async function serveConversationVideo(id: string, viewer: Viewer): Promise<Response> {
+	const served = await servedOf(id);
+	const cache = served && await cacheFor(viewer, served);
+	if (!served || served.mime !== "video/mp4" || !cache) return new Response("not found", { status: 404, headers: { "cache-control": PRIVATE } });
+	return new Response(conversationVideoMap(served.id, mediaUrl(served.id, served.mime), served.owner), { headers: { "content-type": "application/xml", "cache-control": cache, "x-content-type-options": "nosniff" } });
+}
+
 // /media/<id>[.ext], /media/banner/<id>[/<size>] and /media/poster/<id>.jpg; the
 // client asks for sizes through the query string or a path suffix, and gets the
 // original either way. Byte ranges are answered so the video player can seek.
 export async function serveMedia(req: Request, pathname: string, viewer: Viewer): Promise<Response> {
+	const cardVideo = /^\/media\/card-video\/(\d{1,19})\.xml$/.exec(pathname);
 	const poster = /^\/media\/poster\/(\d{1,19})\.jpg$/.exec(pathname);
+	if (cardVideo && isId(cardVideo[1])) return serveConversationVideo(cardVideo[1], viewer);
 	if (poster && isId(poster[1])) {
 		const body = await remoteMediaFile(poster[1], true);
 		const served = body && (await servedOf(poster[1]));

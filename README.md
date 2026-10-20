@@ -66,6 +66,17 @@ copy during setup, and it stays on that machine.
 - Branded hashtags (X's branded likes and hashmoji, Admin > Branded
   hashtags): for a set time, liking a post with the hashtag plays a custom
   Lottie animation, and the hashtag shows an emoji (optionally with hashfetti)
+- Conversation cards: the composer’s conversation-card icon adds up to four hashtag buttons
+  with prefilled post text, a title and an optional thank-you message, destination
+  URL and display URL to one image, GIF or video. The editor previews the attached media, title and buttons
+  together; its crop control opens the client’s image editor for still images.
+  Published cards use the client’s native image/video conversation-card design.
+  Each button opens an editable post carrying the original card; hashtag fields
+  add the # prefix automatically. Post text is optional, including the prefilled
+  text for each choice (which defaults to its hashtag). Drafts and scheduled
+  posts preserve card settings and media. Incomplete cards can be saved as drafts;
+  scheduling requires a valid card with one finished upload. Empty-text card
+  shares include the title and hashtags when federation is enabled.
 - Import from X (off by default; Admin > Settings, feature switches, then
   Settings > Your account > Import from X): upload the archive x.com makes
   (up to `ARCHIVE_MAX_MB`, default 1024) and its posts, threads, photos,
@@ -364,6 +375,9 @@ expiry, write paths and request limits against one.
   validation without a running server. `bun scripts/test-juicebox.ts` verifies
   realm registration and recovery; run it with `recover` after a realm/database
   restart to check durability (`TEST_JUICEBOX_URL` selects the realm).
+- `bun scripts/test-conversation-live.ts public/logo-light.png` verifies conversation
+  card uploads, publication, native previews, sharing and JSON storage against a
+  running server and database. It creates and removes its own test account.
 - Other checks: `test-account-settings`, `test-two-factor`, `test-password-reset`,
   `test-reply-limits`, `test-views`, `test-protected`, `test-communities`, `test-lists`,
   `test-polls`, `test-scheduled` and the rest of `scripts/test-*.ts`. A passing

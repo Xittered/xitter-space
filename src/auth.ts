@@ -193,12 +193,16 @@ export function getViewer(req: Request): Promise<Viewer | undefined> {
 	return loading;
 }
 
+export function csrfCookie(csrf: string): string {
+	return `ct0=${csrf}; Path=/; Max-Age=${YEAR}; SameSite=Lax${SECURE}`;
+}
+
 export function sessionCookies(s: { token: string; csrf: string; userId: string }): string[] {
 	const base = `Path=/; Max-Age=${YEAR}; SameSite=Lax${SECURE}`;
 	return [
 		`auth_token=${s.token}; HttpOnly; ${base}`,
 		// the client reads these two itself
-		`ct0=${s.csrf}; ${base}`,
+		csrfCookie(s.csrf),
 		`twid=u%3D${s.userId}; ${base}`,
 	];
 }

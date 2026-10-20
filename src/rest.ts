@@ -8,10 +8,11 @@ import { hashflagsJson } from "./hashflags";
 import { accountsRoute } from "./accounts";
 import type { Viewer } from "./auth";
 import { addKeyword, mutedKeywords, removeKeywords, setBlock, setMute, updateKeyword } from "./blocks";
+import { getPost } from "./posts";
 import { sql } from "./db";
 import { flagValue, unknownFlag } from "./flags";
 import { isId } from "./ids";
-import { isVerified, legacyUser } from "./model";
+import { isVerified, legacyUser, tweetResult } from "./model";
 import { markSeen } from "./notifications";
 import { PollError, createCard, vote } from "./polls";
 import { placeById, searchPlaces } from "./places";
@@ -129,6 +130,14 @@ const EMPTY_LIST = { users: [], next_cursor: 0, next_cursor_str: "0", previous_c
 
 // `path` has no /i/api prefix
 export async function restRoute(method: string, path: string, viewer: Viewer, req: Request): Promise<Response | undefined> {
+	if ((method === "GET" && path.endsWith("/capi/passthrough/1")) || (method === "POST" && path === "/v2/cards/preview.json")) {
+		const params = { ...Object.fromEntries(new URL(req.url).searchParams), ...(method === "POST" ? await form(req) : {}) };
+		const id = /^card:\/\/(\d{1,19})$/.exec(params["twitter:string:card_uri"] ?? params.status ?? "")?.[1];
+		const post = id && isId(id) ? await getPost(viewer.id, id) : undefined;
+		const card = post?.conversationCard ? (tweetResult(post, false).card as any)?.legacy : undefined;
+		if (!card) return Response.json({ errors: [{ code: 144, message: "That conversation card is unavailable." }] }, { status: 404 });
+		return Response.json({ card: { ...card, binding_values: Object.fromEntries(card.binding_values.map((entry: any) => [entry.key, entry.value])) } });
+	}
 	// poll cards: created before the post, voted on afterwards
 	if (method === "POST" && /^\/v2\/cards\/create\.json$/.test(path)) {
 		const form = await req.formData().catch(() => undefined);
