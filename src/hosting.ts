@@ -164,12 +164,12 @@ export async function hostingHandoff(url: URL, viewer: Viewer | undefined): Prom
 	return redirect(`${SITE_ORIGIN}/callback?ticket=${ticket}&state=${state}`);
 }
 
-type Applicant = { id: string; screen_name: string; csrf: string; status: string };
+type Applicant = { id: string; screen_name: string; csrf: string; status: string; role: string | null };
 
 async function applicant(req: Request): Promise<Applicant | undefined> {
 	const token = cookie(req, "apply_session");
 	if (!token) return;
-	const [s] = await sql`select u.id::text, u.screen_name, s.csrf, u.status from hosting_sessions s join users u on u.id = s.user_id
+	const [s] = await sql`select u.id::text, u.screen_name, s.csrf, u.status, u.role from hosting_sessions s join users u on u.id = s.user_id
 		where s.token_hash = ${digest(token)} and s.created_at > now() - interval '30 days' and u.deactivated_at is null`;
 	return s as Applicant | undefined;
 }
@@ -185,9 +185,11 @@ export const redirect = (to: string, cookies: string[] = []) => {
 
 // ── the apply pages (my.<domain>/apply; portal.ts routes them here) ──────
 
-const PAGE_CSS = `.narrow{max-width:680px}.steps{counter-reset:s;list-style:none;padding:0;margin:18px 0}.steps li{counter-increment:s;position:relative;padding:0 0 18px 46px}
-.steps li::before{content:counter(s);position:absolute;left:0;top:-2px;width:30px;height:30px;border-radius:50%;background:#16181c;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
-.state{display:flex;gap:14px;align-items:flex-start}.state .icon{font-size:30px}.checklist{list-style:none;padding:0;margin:10px 0}.checklist li{padding:4px 0}`;
+const PAGE_CSS = `.card{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:14px}.card.dim{color:var(--dim)}
+.btn.ghost{background:none;color:var(--fg);border-color:var(--line-strong)}.btn.ghost:hover{border-color:var(--fg)}h2{font-family:var(--display);font-size:20px;font-weight:600;letter-spacing:-.02em}
+.steps{counter-reset:s;list-style:none;padding:0;margin:20px 0}.steps li{counter-increment:s;position:relative;padding:0 0 16px 40px;color:var(--dim)}.steps li b{color:var(--fg);font-weight:600}
+.steps li::before{content:counter(s,decimal-leading-zero);position:absolute;left:0;top:1px;font-family:var(--mono);font-size:12px;color:var(--mute)}
+.state{display:flex;gap:14px;align-items:flex-start}.state .icon{font-size:26px}`;
 
 const STATE_TEXT: Record<string, [string, string, string]> = {
 	pending: ["hourglass_top", "Waiting for review", "Staff look at every name and instance. You'll see the result here."],
@@ -271,14 +273,14 @@ export async function applyRoutes(req: Request, url: URL): Promise<Response> {
 	if (mine) {
 		const [ic, head, text] = STATE_TEXT[mine.state] ?? ["info", mine.state, ""];
 		return runPage("Your instance", `${signedIn}<h1>${esc(fqdn(mine.name))}</h1>
-<div class="card state"><span class="icon fill" style="color:${mine.state === "pending" ? "var(--amber)" : "var(--green)"}">${ic}</span><div><b>${esc(head)}</b><div class="dim">${esc(text)}</div>
+<div class="card state"><span class="icon fill" style="color:${mine.state === "pending" ? "var(--mute)" : "var(--accent)"}">${ic}</span><div><b>${esc(head)}</b><div class="dim">${esc(text)}</div>
 <div class="dim" style="margin-top:6px">Points at <code>${esc(mine.target)}</code></div>
 <div class="row" style="margin-top:14px">${mine.state === "live" ? `<a class="btn small" href="https://${esc(fqdn(mine.name))}/">Open it</a>` : ""}${mine.state === "pending" ? "" : `<form method="post" action="/check">${csrf}<button class="btn ghost small">${icon("refresh")} Check now</button></form>`}
 <form method="post" action="/withdraw">${csrf}<button class="btn ghost small">${mine.state === "pending" ? "Withdraw" : "Give the name back"}</button></form></div></div></div>
 ${mine.state === "approved" ? setupGuide(mine.name, mine.target, mine.last_check) : ""}
 ${mine.state === "live" ? `<p style="margin-top:20px">${icon("hub")} To federate, open a pull request that adds yours to <a href="https://github.com/Xittered/xitter/blob/main/instances.json">instances.json</a>.</p>` : ""}`);
 	}
-	const refused = last && ["rejected", "revoked"].includes(last.state) ? `<div class="card" style="border-color:rgba(244,33,46,.5)"><span class="error">${icon("block")} ${esc(fqdn(last.name))} was ${esc(last.state)}.</span>${last.review_note ? ` ${esc(last.review_note)}` : ""}</div>` : "";
+	const refused = last && ["rejected", "revoked"].includes(last.state) ? `<div class="card" ><span class="error">${icon("block")} ${esc(fqdn(last.name))} was ${esc(last.state)}.</span>${last.review_note ? ` ${esc(last.review_note)}` : ""}</div>` : "";
 	return runPage("Run your own", `${signedIn}${intro()}${refused}${form(me)}`);
 }
 
@@ -315,3 +317,9 @@ async function apply(me: Applicant, f: FormData): Promise<Response> {
 	}
 	return redirect("/apply");
 }
+
+// staff signed in on the site (portal.ts shows them /staff; nobody else sees it)
+export const isStaffSession = async (req: Request) => {
+	const me = await applicant(req);
+	return !!me?.role && me.status === "active";
+};

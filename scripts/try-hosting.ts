@@ -20,7 +20,7 @@ const browse = await (await apply("/instances")).text();
 check("/instances lists the instances", browse.includes('id="grid"') && browse.includes('href="/instances/xitter.space"'));
 check("an instance has its own page", (await (await apply("/instances/xitter.space")).text()).includes("Federates with"));
 check("an unknown instance is a 404", (await apply("/instances/nope.example")).status === 404);
-check("/staff has the admin links", (await (await apply("/staff")).text()).includes("/admin#hosting"));
+check("/staff is hidden from guests", (await apply("/staff")).status === 404 && !welcome.includes(`href="/staff"`));
 check("/go only goes to listed instances", (await apply("/go?to=evil.example")).status === 200 && (await apply("/go?to=xitter.space")).headers.get("location") === "https://xitter.space/");
 
 const login = await fetch(`${origin}/login`, { method: "POST", body: new URLSearchParams({ username: user, password }), redirect: "manual" });
