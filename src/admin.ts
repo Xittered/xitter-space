@@ -28,6 +28,7 @@ import { CardError, deleteCard, listCards, saveCard } from "./explore-cards";
 import { mailEnabled, mailFrom, sendMail } from "./mail";
 import { mailDigests } from "./mail-digest";
 import { toolActions } from "./admin-tools";
+import { hostingActions } from "./hosting-admin";
 import { stickerActions } from "./stickers";
 import { hashflagActions } from "./hashflags";
 import { switchActions } from "./feature-switches";
@@ -847,6 +848,7 @@ const ACTIONS: Record<string, Action> = {
 };
 
 Object.assign(ACTIONS, toolActions);
+Object.assign(ACTIONS, hostingActions);
 Object.assign(ACTIONS, stickerActions);
 Object.assign(ACTIONS, hashflagActions);
 Object.assign(ACTIONS, switchActions);

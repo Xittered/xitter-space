@@ -1443,3 +1443,41 @@ delete from blocks bl using users b, users t where b.id = bl.blocker_id and t.id
 
 -- profile decor for gold-check accounts, from the Steam Points Shop (decor.ts)
 alter table users add column if not exists decor jsonb;
+
+-- instances hosted under HOSTING_DOMAIN (hosting.ts): name.<domain> points at
+-- the owner's server once staff approve it; one live application per account
+create table if not exists hosted_instances (
+	id bigint primary key,
+	user_id bigint not null references users (id) on delete cascade,
+	name text not null,
+	target text not null,
+	record_type text not null check (record_type in ('A', 'AAAA', 'CNAME')),
+	about text not null default '',
+	source_url text,
+	contact text not null default '',
+	state text not null default 'pending' check (state in ('pending', 'approved', 'live', 'rejected', 'revoked', 'withdrawn')),
+	review_note text,
+	reviewed_by bigint references users (id) on delete set null,
+	reviewed_at timestamptz,
+	dns_record_id text,
+	public_key text,
+	last_check_at timestamptz,
+	last_check text,
+	created_at timestamptz not null default now(),
+	updated_at timestamptz not null default now()
+);
+create unique index if not exists hosted_instances_name on hosted_instances (name) where state in ('pending', 'approved', 'live');
+create unique index if not exists hosted_instances_owner on hosted_instances (user_id) where state in ('pending', 'approved', 'live');
+-- the apply site's own sign-in: a one-time ticket from the main site, then a session
+create table if not exists hosting_tickets (
+	ticket_hash text primary key,
+	user_id bigint not null references users (id) on delete cascade,
+	state text not null,
+	created_at timestamptz not null default now()
+);
+create table if not exists hosting_sessions (
+	token_hash text primary key,
+	user_id bigint not null references users (id) on delete cascade,
+	csrf text not null,
+	created_at timestamptz not null default now()
+);

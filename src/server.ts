@@ -54,6 +54,7 @@ import { emailRoute } from "./email-address";
 import { embedImage, linkPreview, oembed } from "./embeds";
 import { noteAppealsRoute } from "./note-appeals";
 import { decorCatalog, decorFor, decorRoute, decorShop, steamFile } from "./decor";
+import { APPLY_HOST, HOSTING_ON, applySite, hostingHandoff, startHostingChecks } from "./hosting";
 
 const MIME: Record<string, string> = {
 	js: "text/javascript; charset=utf-8",
@@ -266,6 +267,7 @@ setInterval(
 ).unref();
 await loadSettings();
 await resumeVideos(MEDIA_DIR);
+startHostingChecks();
 
 // a request that throws is answered by Bun's error() below, which doesn't know
 // the request; caught here it is logged with its path and account
@@ -283,6 +285,8 @@ async function route(req: Request): Promise<Response | undefined> {
 	rememberIp(req, server.requestIP(req)?.address);
 	const url = new URL(req.url);
 	const p = url.pathname;
+	// the hosting application site (hosting.ts) shares this process, not its cookies
+	if (HOSTING_ON && url.hostname === APPLY_HOST) return applySite(req, url);
 	if (p === "/federation/superadmin/accept") return acceptTicket(req, requestIp(req) ?? "unknown");
 	if (p.startsWith("/i/xitter/decoration/")) return (await decorationFile(url)) ?? new Response("not found", { status: 404 });
 	if (req.method !== "GET" && req.method !== "HEAD" && req.headers.has("cookie")) {
@@ -366,6 +370,8 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (viewer?.role && !(await staffGate(req, viewer))) markStaff();
 	// a suspended account can't sign in, so it appeals here with its password
 	if (p === "/appeal") return appealRoute(req, server.requestIP(req)?.address ?? "");
+	// sign-in for the hosting application site: a one-time ticket for whoever is signed in here
+	if (p === "/account/hosting/handoff") return hostingHandoff(url, viewer);
 	// maintenance: staff carry on, everyone else signed in waits
 	if (viewer && !viewer.role && settings().operations.maintenance) {
 		if (API_PREFIX.test(p) || req.method !== "GET") return apiError(503, 130, settings().operations.message);
