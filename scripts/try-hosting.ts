@@ -15,7 +15,12 @@ const apply = (path: string, init: RequestInit & { cookies?: string[] } = {}) =>
 	fetch(`${origin}${path}`, { ...init, redirect: "manual", headers: { host: applyHost, cookie: (init.cookies ?? []).join("; "), ...(init.method === "POST" ? { origin: `https://${applyHost}` } : {}), ...(init.headers as any) } });
 
 const welcome = await (await apply("/")).text();
-check("the welcome page lists this instance", welcome.includes("<h2>Instances</h2>") && welcome.includes('href="/apply"'));
+check("the landing page has the map and the way to apply", welcome.includes('<svg class="map"') && welcome.includes('href="/apply"'));
+const browse = await (await apply("/instances")).text();
+check("/instances lists the instances", browse.includes('id="grid"') && browse.includes('href="/instances/xitter.space"'));
+check("an instance has its own page", (await (await apply("/instances/xitter.space")).text()).includes("Federates with"));
+check("an unknown instance is a 404", (await apply("/instances/nope.example")).status === 404);
+check("/staff has the admin links", (await (await apply("/staff")).text()).includes("/admin#hosting"));
 check("/go only goes to listed instances", (await apply("/go?to=evil.example")).status === 200 && (await apply("/go?to=xitter.space")).headers.get("location") === "https://xitter.space/");
 
 const login = await fetch(`${origin}/login`, { method: "POST", body: new URLSearchParams({ username: user, password }), redirect: "manual" });
@@ -44,7 +49,7 @@ check("the callback signs in on the apply site", cb.status === 303 && session.le
 check("a used ticket is refused", (await apply(`/callback${back2.search}`, { cookies: stateCookie })).status === 400);
 
 let home = await (await apply("/apply", { cookies: session })).text();
-check("the form shows when signed in", home.includes(`Signed in as @${user}`) && home.includes('action="/apply"'));
+check("the form shows when signed in", home.includes(`@${user}`) && home.includes(`action="/logout"`) && home.includes('action="/apply"'));
 const csrf = /name="csrf" value="([^"]+)"/.exec(home)![1]!;
 const post = (path: string, body: Record<string, string>, extra: Record<string, string> = {}) =>
 	apply(path, { method: "POST", cookies: session, body: new URLSearchParams({ csrf, ...body }), headers: extra });
@@ -61,7 +66,7 @@ check("a second application is refused", !(await post("/apply", { ...form, name:
 check("withdrawing works", (await post("/withdraw", {})).status === 303);
 home = await (await apply("/apply", { cookies: session })).text();
 check("the form is back after withdrawing", home.includes('action="/apply"'));
-check("signing out works", (await post("/logout", {})).status === 303 && !(await (await apply("/apply", { cookies: session })).text()).includes("Signed in as"));
+check("signing out works", (await post("/logout", {})).status === 303 && !(await (await apply("/apply", { cookies: session })).text()).includes(`action="/logout"`));
 
 console.log(failed ? `${failed} failed` : "all passed");
 process.exit(failed ? 1 : 0);
