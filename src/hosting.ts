@@ -44,6 +44,7 @@ const COOKIE = "Path=/; HttpOnly; Secure; SameSite=Lax";
 // 3 to 30 letters, digits and hyphens, no hyphen at either end and no "--"
 // (xn-- is punycode, and a lookalike waiting to happen)
 const LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
+export const isLabel = (name: string) => LABEL_RE.test(name) && !name.includes("--");
 export const RESERVED = new Set(
 	("www my hub api apply mail smtp imap pop pop3 mx ns ns1 ns2 dns admin root status docs blog help support staff team " +
 		"xitter xit official verify verification mobile app apps cdn static media assets img files ftp git auth login logout " +
@@ -101,6 +102,8 @@ export async function cf(method: string, path: string, body?: unknown): Promise<
 }
 
 export const recordsFor = async (name: string): Promise<any[]> => cf("GET", `/dns_records?name=${encodeURIComponent(fqdn(name))}`);
+// every record in the zone (the hosting domain has few)
+export const zoneRecords = async (): Promise<any[]> => cf("GET", "/dns_records?per_page=500");
 
 async function nameTaken(name: string): Promise<boolean> {
 	const [row] = await sql`select 1 from hosted_instances where name = ${name} and state in ('pending', 'approved', 'live')`;
@@ -316,8 +319,3 @@ async function apply(me: Applicant, f: FormData): Promise<Response> {
 	return redirect("/apply");
 }
 
-// staff signed in on the site (portal.ts shows them /staff; nobody else sees it)
-export const isStaffSession = async (req: Request) => {
-	const me = await applicant(req);
-	return !!me?.role && me.status === "active";
-};

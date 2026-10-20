@@ -1,5 +1,5 @@
 // my.<HOSTING_DOMAIN>: the way into the whole network. A landing page,
-// /instances to browse them, /instances/<id> for one, /staff, and the hosting
+// /instances to browse them, /instances/<id> for one, and the hosting
 // application (hosting.ts, at /apply).
 //
 // What it shows about other instances comes from two places: what federation
@@ -11,7 +11,7 @@ import { esc } from "./account-page";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { FEDERATION_ON, INSTANCE_ID, ID_RE, listed, peers, readLimited } from "./federation";
-import { HOSTING_DOMAIN, HOSTING_ON, SITE_HOST, SITE_ORIGIN, applyRoutes, fqdn, isStaffSession, publicAddress, redirect } from "./hosting";
+import { HOSTING_DOMAIN, HOSTING_ON, SITE_HOST, SITE_ORIGIN, applyRoutes, fqdn, publicAddress, redirect } from "./hosting";
 import { icon, portalPage } from "./portal-layout";
 import { settings } from "./settings";
 
@@ -189,7 +189,7 @@ const HOME_CSS = `.hero{position:relative;overflow:hidden;padding:72px 0 40px}
 .band ol{margin:12px 0 0;padding-left:20px;color:var(--dim)}.band ol b{color:var(--text)}.head-row{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:20px;flex-wrap:wrap}
 @media (max-width:860px){.hero h1{font-size:44px}.numbers{grid-template-columns:repeat(2,1fr)}.numbers div:nth-child(3){border-left:0}.numbers div:nth-child(n+3){border-top:1px solid var(--line)}.how{grid-template-columns:1fr}.band{grid-template-columns:1fr}}`;
 
-async function home(staff = false): Promise<Response> {
+async function home(): Promise<Response> {
 	const list = await instances();
 	const online = list.filter((i) => i.status === "online").length;
 	const accounts = list.reduce((s, i) => s + i.accounts, 0);
@@ -212,7 +212,7 @@ async function home(staff = false): Promise<Response> {
 <section><div class="wrap"><div class="card band"><div><h2>Run your own</h2><p class="dim" style="margin:0">Get <b style="color:var(--text)">yourname.${esc(HOSTING_DOMAIN)}</b> for your server, free.</p>
 <ol><li><b>Apply</b> with a name and your server's address.</li><li><b>Set up</b> Xitter and Caddy; it gets its own certificate.</li><li><b>Go live</b> and join the federation.</li></ol></div>
 <a class="btn blue" href="/apply">Apply for a name</a></div></div></section>`,
-		{ nav: "home", css: HOME_CSS + CARD_CSS, script: IMG_SCRIPT, staff },
+		{ nav: "home", css: HOME_CSS + CARD_CSS, script: IMG_SCRIPT },
 	);
 }
 
@@ -233,7 +233,7 @@ q.addEventListener("input",apply);sort.addEventListener("change",apply);
 document.querySelectorAll(".chip").forEach(function(b){b.addEventListener("click",function(){document.querySelectorAll(".chip").forEach(function(x){x.classList.toggle("on",x===b)});filter=b.dataset.filter;apply()})});
 })();`;
 
-async function instancesPage(error = "", staff = false): Promise<Response> {
+async function instancesPage(error = ""): Promise<Response> {
 	const list = await instances();
 	const online = list.filter((i) => i.status === "online").length;
 	return portalPage(
@@ -241,10 +241,10 @@ async function instancesPage(error = "", staff = false): Promise<Response> {
 		`<div class="wrap"><div class="page-head"><h1>Instances</h1><p class="lead">${list.length} instances, ${online} online right now. Pick one to join; you can follow people on all the others from there.</p></div>
 <div class="toolbar"><input id="q" type="search" placeholder="Search by name or address" aria-label="Search instances">
 <select id="sort" aria-label="Sort"><option value="accounts">Most accounts</option><option value="posts">Most posts</option><option value="name">Name</option></select></div>
-<div class="chips" style="margin-bottom:20px"><button class="chip on" data-filter="all">All</button><button class="chip" data-filter="online">Online</button><button class="chip" data-filter="open">Open sign-ups</button><button class="chip" data-filter="hosted">On ${esc(HOSTING_DOMAIN)}</button></div>
+<div class="chips" style="margin-bottom:20px"><button class="chip on" data-filter="all">All</button><button class="chip" data-filter="online">Online</button><button class="chip" data-filter="hosted">On ${esc(HOSTING_DOMAIN)}</button></div>
 <div class="grid" id="grid">${list.map(card).join("")}</div><div class="none" id="none">${icon("search_off")} Nothing matches.</div>
 <div class="card" style="margin-top:32px"><form method="get" action="/go" class="row"><span class="dim">${icon("link")} Know the address?</span><input name="to" placeholder="xit.example.org" maxlength="253" style="flex:1;min-width:200px"><button class="btn small">Go</button></form>${error ? `<p class="error" style="margin:10px 0 0">${esc(error)}</p>` : ""}</div></div>`,
-		{ nav: "instances", css: CARD_CSS + LIST_CSS, script: LIST_SCRIPT, staff },
+		{ nav: "instances", css: CARD_CSS + LIST_CSS, script: LIST_SCRIPT },
 	);
 }
 
@@ -257,10 +257,10 @@ const ONE_CSS = `.banner{position:relative;border-radius:22px;overflow:hidden;bo
 .peerlist{display:flex;gap:8px;flex-wrap:wrap}.peer{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;color:var(--text);font-size:14px}.peer:hover{background:#181919;text-decoration:none}
 @media (max-width:700px){.facts{grid-template-columns:repeat(2,1fr)}.info{grid-template-columns:1fr}.banner .logo{margin-left:0}}`;
 
-async function instancePage(id: string, staff = false): Promise<Response> {
+async function instancePage(id: string): Promise<Response> {
 	const list = await instances();
 	const i = list.find((x) => x.id === id);
-	if (!i) return portalPage("Not found · Xitter", `<div class="wrap"><div class="page-head"><h1>Not on the list</h1><p class="lead">${esc(id)} isn't an instance we know.</p><a class="btn" href="/instances">All instances</a></div></div>`, { status: 404, nav: "instances", staff });
+	if (!i) return portalPage("Not found · Xitter", `<div class="wrap"><div class="page-head"><h1>Not on the list</h1><p class="lead">${esc(id)} isn't an instance we know.</p><a class="btn" href="/instances">All instances</a></div></div>`, { status: 404, nav: "instances" });
 	const known = new Set(list.map((x) => x.id));
 	const peerChips = i.peers.length
 		? `<div class="peerlist">${i.peers
@@ -289,21 +289,7 @@ async function instancePage(id: string, staff = false): Promise<Response> {
 <div class="grid" style="grid-template-columns:1fr 1fr"><div class="card"><h3 style="margin-top:0">About</h3><dl class="info">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></div>
 <div class="card"><h3 style="margin-top:0">Federates with</h3>${peerChips}</div></div>
 ${i.main ? "" : `<p class="dim small" style="margin-top:16px">${icon("info")} Accounts and posts are what reached ${esc(INSTANCE_ID)} through federation.</p>`}</div>`,
-		{ nav: "instances", css: CARD_CSS + ONE_CSS + `@media (max-width:760px){.grid[style]{grid-template-columns:1fr!important}}`, script: IMG_SCRIPT, staff },
-	);
-}
-
-// ── /staff ────────────────────────────────────────────────────────────────
-
-function staffPage(): Response {
-	const tile = (href: string, ic: string, title: string, text: string) => `<a class="card tile" href="${href}">${icon(ic)}<b>${title}</b><span class="dim">${text}</span></a>`;
-	return portalPage(
-		"Staff · Xitter",
-		`<div class="wrap"><div class="page-head"><h1>Staff</h1><p class="lead">For the team running ${esc(settings().instance_name)}.</p></div>
-<div class="grid">${tile(`${PUBLIC_ORIGIN}/?staff=1`, "login", "Sign in", "Works during maintenance too.")}${tile(`${PUBLIC_ORIGIN}/admin`, "admin_panel_settings", "Admin panel", "Users, reports, settings.")}
-${tile(`${PUBLIC_ORIGIN}/admin#hosting`, "dns", "Hosted instances", `Review names on ${esc(HOSTING_DOMAIN)}.`)}${tile(`${PUBLIC_ORIGIN}/admin#federation`, "hub", "Federation", "Peers, keys, blocks.")}
-${tile(`${PUBLIC_ORIGIN}/admin#reports`, "flag", "Reports", "What people flagged.")}${tile("https://github.com/Xittered/xitter", "code", "Source", "Issues and pull requests.")}</div></div>`,
-		{ nav: "staff", staff: true, css: `.tile{display:flex;flex-direction:column;gap:6px;color:var(--text)}.tile:hover{text-decoration:none;border-color:#536471}.tile .icon{font-size:30px;color:var(--blue);margin-bottom:6px}.tile b{font-size:17px}` },
+		{ nav: "instances", css: CARD_CSS + ONE_CSS + `@media (max-width:760px){.grid[style]{grid-template-columns:1fr!important}}`, script: IMG_SCRIPT },
 	);
 }
 
@@ -319,14 +305,11 @@ async function go(url: URL): Promise<Response> {
 export async function portalSite(req: Request, url: URL): Promise<Response> {
 	const p = url.pathname;
 	if (url.hostname !== SITE_HOST) return new Response(null, { status: 301, headers: { location: `${SITE_ORIGIN}${p}${url.search}` } });
-	if (req.method === "GET" && (p === "/" || p === "/instances" || p.startsWith("/instances/") || p === "/staff" || p === "/go")) {
-		// staff links are only for staff signed in here; to anyone else /staff doesn't exist
-		const staff = await isStaffSession(req);
-		if (p === "/") return home(staff);
-		if (p === "/instances") return instancesPage("", staff);
-		if (p.startsWith("/instances/")) return instancePage(p.slice(11).toLowerCase(), staff);
-		if (p === "/staff") return staff ? staffPage() : applyRoutes(req, url);
-		return go(url);
+	if (req.method === "GET") {
+		if (p === "/") return home();
+		if (p === "/instances") return instancesPage();
+		if (p.startsWith("/instances/")) return instancePage(p.slice(11).toLowerCase());
+		if (p === "/go") return go(url);
 	}
 	return applyRoutes(req, url);
 }

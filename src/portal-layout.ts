@@ -7,7 +7,7 @@ import { esc } from "./account-page";
 import { PUBLIC_ORIGIN } from "./config";
 import { settings } from "./settings";
 
-export type Nav = "home" | "instances" | "run" | "staff" | "";
+export type Nav = "home" | "instances" | "run" | "";
 
 const CSS = `:root{color-scheme:dark;--bg:#000;--panel:#0b0d0f;--card:#101214;--line:#2f3336;--text:#e7e9ea;--dim:#71767b;--blue:#1d9bf0;--green:#00ba7c;--red:#f4212e;--amber:#ffd400}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Inter,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
@@ -42,7 +42,7 @@ const FONTS = `<link rel="preconnect" href="https://fonts.googleapis.com"><link 
 
 export const icon = (name: string, fill = false) => `<span class="icon${fill ? " fill" : ""}" aria-hidden="true">${name}</span>`;
 
-export type PageOptions = { status?: number; nav?: Nav; script?: string; css?: string; staff?: boolean };
+export type PageOptions = { status?: number; nav?: Nav; script?: string; css?: string };
 
 export function portalPage(title: string, body: string, opts: PageOptions = {}): Response {
 	const nonce = randomBytes(16).toString("base64");
@@ -52,7 +52,7 @@ export function portalPage(title: string, body: string, opts: PageOptions = {}):
 <title>${esc(title)}</title><meta name="description" content="Xitter instances: pick one, or run your own on ${esc(domain)}.">
 <link rel="icon" href="${PUBLIC_ORIGIN}/public/favicon.png">${FONTS}<style>${CSS}${opts.css ?? ""}</style></head><body>
 <header class="top"><div class="in"><a class="brand" href="/"><img src="${PUBLIC_ORIGIN}/public/logo-dark.png" alt="Xitter"></a>
-${link("/instances", "instances", "public", "Instances")}${link("/apply", "run", "dns", "Run your own")}${opts.staff ? link("/staff", "staff", "shield_person", "Staff") : ""}
+${link("/instances", "instances", "public", "Instances")}${link("/apply", "run", "dns", "Run your own")}
 <a class="btn small" href="${PUBLIC_ORIGIN}/" style="margin-left:6px">Open ${esc(domain)}</a></div></header>
 ${body}
 <footer class="bottom"><div class="wrap"><span>Run by <a href="${PUBLIC_ORIGIN}/">${esc(settings().instance_name)}</a></span><a href="${esc(settings().source_url)}">Source (AGPL-3.0)</a><a href="https://github.com/Xittered/xitter/blob/main/FEDERATION.md">Federation rules</a><a href="https://github.com/Xittered/xitter/blob/main/instances.json">Instance list</a></div></footer>

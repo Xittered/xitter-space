@@ -791,8 +791,22 @@ const RENDER = {
 					(i.state === "pending" ? (can("hostingApprove") ? '<button class="btn" data-approve="' + esc(i.id) + '">Approve</button>' : "") + (can("hostingReject") ? '<button class="btn danger" data-reject="' + esc(i.id) + '">Reject</button>' : "") : "") +
 					(["approved", "live"].includes(i.state) ? '<button class="btn" data-check="' + esc(i.id) + '">Check now</button>' + (can("hostingRevoke") ? '<button class="btn danger" data-revoke="' + esc(i.id) + '">Revoke</button>' : "") : "") +
 					"</div></div>").join("")
-				: '<div class="empty">No applications yet.</div>');
-		const reason = (what) => { const r = prompt(what + " Optional note for the applicant:", ""); return r === null ? null : r; };
+				: '<div class="empty">No applications yet.</div>') +
+			(can("hostingAdopt")
+				? '<div class="box" style="margin-top:16px"><h2>Records made by hand</h2><p class="dim small">Records under ' + esc(h.domain) + " that no application owns, like ones made before this page existed. Adopting one makes it an instance of the account you name, so checks and revoking cover it. The record itself isn't changed.</p>" +
+					(h.unmanaged.error ? '<p class="small">Cloudflare: ' + esc(h.unmanaged.error) + "</p>" : "") +
+					(h.unmanaged.list.length
+						? '<div class="scroll"><table class="table"><tr><th>Name</th><th>Points at</th><th>Owner</th><th></th></tr>' +
+							h.unmanaged.list.map((r) => "<tr><td><b>" + esc(r.name + "." + h.domain) + '</b></td><td class="small"><span class="code">' + esc(r.type) + "</span> " + esc(r.content) + (r.proxied ? ' <span class="dim">(proxied)</span>' : "") +
+								'</td><td><input data-owner="' + esc(r.name) + '" placeholder="@handle" style="width:140px"></td><td><button class="btn" data-adopt="' + esc(r.name) + '">Adopt</button></td></tr>').join("") + "</table></div>"
+						: '<p class="dim small">None: every record is managed here.</p>') + "</div>"
+				: "");
+		main.querySelectorAll("[data-adopt]").forEach((b) => b.onclick = () => {
+			const owner = main.querySelector('[data-owner="' + b.dataset.adopt + '"]').value.trim();
+			if (!owner) return notice("Name the account that owns it.", true);
+			act(() => api("hostingAdopt", { name: b.dataset.adopt, owner }), "Adopted").then(route);
+		});
+		const reason =(what) => { const r = prompt(what + " Optional note for the applicant:", ""); return r === null ? null : r; };
 		main.querySelectorAll("[data-approve]").forEach((b) => b.onclick = async () => {
 			if (!(await ask("Approve it? This creates the DNS record right away."))) return;
 			act(() => api("hostingApprove", { id: b.dataset.approve }), "Approved").then(route);
