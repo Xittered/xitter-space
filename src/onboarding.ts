@@ -26,7 +26,11 @@ import { settings } from "./settings";
 import { hit, used } from "./ratelimit";
 import { requestCountry, requestIp } from "./login-history";
 
-const load = async (name: string): Promise<Message[]> => fromJson(await Bun.file(new URL(`./jf/${name}.json`, import.meta.url)).json());
+// X's name field drops everything outside a-z, 0-9 and a few marks as it is
+// typed; staff-set handles can hold any symbol, so let it all through
+const X_NAME_PATTERN = "^[a-zA-Z0-9@._+\\-]+$";
+const load = async (name: string): Promise<Message[]> =>
+	mapStrings(fromJson(await Bun.file(new URL(`./jf/${name}.json`, import.meta.url)).json()), (s) => (s === X_NAME_PATTERN ? "^\\S+$" : s));
 // Takes out of a screen the parts that hold any of these texts. With `part` (a
 // button is 7140) the nearest element of that type goes; otherwise the branch
 // that sits beside the username field, i.e. the child of the nearest element
