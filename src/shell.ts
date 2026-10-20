@@ -48,7 +48,7 @@ export function settingsFor(user: User): Record<string, unknown> {
 		always_allow_dms_from_subscribers: null,
 		allow_dm_groups_from: "following",
 		translator_type: "none",
-		country_code: "us",
+		country_code: (user.country ?? "us").toLowerCase(),
 		nsfw_user: false,
 		nsfw_admin: false,
 		ranked_timeline_setting: null,

@@ -158,6 +158,17 @@ const TEXTS: Record<string, () => string> = {
 	"Choose a name, username, and password.": () => `Welcome to ${settings().instance_name}. Choose a name, username, and password.`,
 };
 
+// Sign-in by email as well as by handle: staff can give an account a handle
+// with characters the dialog's field won't take. One local account per
+// address, or none.
+async function byEmail(typed: string): Promise<string | undefined> {
+	if (!typed.includes("@")) return undefined;
+	const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${typed}) and instance is null`;
+	if (taken) return undefined;
+	const rows = await sql`select screen_name from users where lower(email) = lower(${typed}) and instance is null and status <> 'suspended' limit 2`;
+	return rows.length === 1 ? rows[0].screen_name : undefined;
+}
+
 // sign-up's emailed code, on the same six-box screen
 const emailCodeTexts = (email: string): Record<string, string> => ({
 	"We sent you a security code": "We sent you a code",
@@ -253,6 +264,8 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 		const name = String(f.username_or_email ?? "").trim().replace(/^@/, "");
 		const [user] = name ? await sql`select screen_name from users where lower(screen_name) = lower(${name}) and instance is null and status <> 'suspended'` : [];
 		if (user) return respond(signInScreen(user.screen_name));
+		// the password screen keeps the address: its field may not hold the handle
+		if ((await byEmail(name)) !== undefined) return respond(signInScreen(name));
 		const mode = settings().signup_mode;
 		if (mode === "closed") return respond(fieldError("username_or_email", "No account goes by that name."));
 		const problem = usernameProblem(name);
@@ -362,7 +375,8 @@ export async function onboarding(req: Request, path: string): Promise<Response |
 	}
 	if (path === "/onboarding/web/actions/login_enter_password") {
 		const f = await form(req);
-		const username = String(f.username ?? "").trim().replace(/^@/, "");
+		const typed = String(f.username ?? "").trim().replace(/^@/, "");
+		const username = (await byEmail(typed)) ?? typed;
 		// guessing one account's password from many addresses still runs out;
 		// only wrong passwords count, so signing in on several devices doesn't
 		const account = username.toLowerCase();

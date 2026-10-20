@@ -453,7 +453,7 @@ const likes: Handler = async (viewer, vars) => {
 };
 
 const follows =
-	(kind: "following" | "followers" | "verified_followers"): Handler =>
+	(kind: "following" | "followers" | "verified_followers" | "known_followers"): Handler =>
 	async (viewer, vars) => {
 		const users = vars.cursor ? [] : await followList(viewer.id, userId(vars), kind);
 		const base = BigInt(newId());
@@ -777,6 +777,7 @@ const handlers: Record<string, Handler> = {
 	Following: follows("following"),
 	Followers: follows("followers"),
 	BlueVerifiedFollowers: follows("verified_followers"),
+	FollowersYouKnow: follows("known_followers"),
 	UserMedia: userMedia("any"),
 	UserPhotoTimeline: userMedia("photo"),
 	UserVideoTimeline: userMedia("video"),
