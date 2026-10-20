@@ -851,7 +851,7 @@ const ACTIONS: Record<string, Action> = {
 				entries: await sql`select l.id::text as id, l.action, l.target, l.detail, l.created_at, a.screen_name as actor, l.actor_id is null as automatic,
 					t.screen_name as target_name
 					from audit_log l left join users a on a.id = l.actor_id
-					left join users t on l.target ~ '^[0-9]+$' and t.id = l.target::bigint
+					left join users t on t.id = case when l.target ~ '^[0-9]{1,19}$' and l.target::numeric <= 9223372036854775807 then l.target::bigint end
 					where ${action ? sql`l.action = ${action}` : sql`true`} and ${b.automatic ? sql`l.actor_id is null` : sql`true`}
 						and ${who ? sql`lower(t.screen_name) = lower(${who})` : sql`true`}
 					order by l.id desc limit 100 offset ${offset}`,
