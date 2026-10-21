@@ -572,6 +572,7 @@ alter table chat_events add column if not exists deleted boolean not null defaul
 alter table articles add column if not exists hidden boolean not null default false;
 alter table users add column if not exists org_badge_id bigint references custom_badges(id) on delete set null;
 create index if not exists users_org_badge_idx on users(org_badge_id);
+alter table users add column if not exists remote_org_badge text;
 create index if not exists users_status_until_idx on users(status_until) where status_until is not null;
 
 create table if not exists lists (
@@ -1394,12 +1395,12 @@ begin
 end $$;
 create or replace trigger federation_user_insert after insert on users for each row execute function federation_user_changed();
 alter table users add column if not exists decoration jsonb;
-create or replace trigger federation_user_update after update of screen_name, name, bio, location, website, avatar_url, banner_url, protected, status, deactivated_at, verified_type, translator, flag, pronouns, parody_label, count_overrides, decoration on users for each row
+create or replace trigger federation_user_update after update of screen_name, name, bio, location, website, avatar_url, banner_url, protected, status, deactivated_at, verified_type, translator, flag, pronouns, parody_label, count_overrides, decoration, org_badge_id on users for each row
 	when (old.screen_name is distinct from new.screen_name or old.name is distinct from new.name or old.bio is distinct from new.bio or old.location is distinct from new.location or old.website is distinct from new.website
 		or old.avatar_url is distinct from new.avatar_url or old.banner_url is distinct from new.banner_url or old.protected is distinct from new.protected
 		or old.status is distinct from new.status or old.deactivated_at is distinct from new.deactivated_at or old.verified_type is distinct from new.verified_type
 		or old.translator is distinct from new.translator or old.flag is distinct from new.flag or old.pronouns is distinct from new.pronouns or old.parody_label is distinct from new.parody_label
-		or old.count_overrides is distinct from new.count_overrides or old.decoration is distinct from new.decoration)
+		or old.count_overrides is distinct from new.count_overrides or old.decoration is distinct from new.decoration or old.org_badge_id is distinct from new.org_badge_id)
 	execute function federation_user_changed();
 create or replace function federation_badges_changed() returns trigger language plpgsql as $$
 begin
@@ -1408,6 +1409,36 @@ begin
 end $$;
 create or replace trigger federation_user_badges after insert or delete on user_badges for each row execute function federation_badges_changed();
 create or replace trigger federation_user_delete before delete on users for each row execute function federation_user_changed();
+create table if not exists affiliation_votes (
+	org_id bigint not null references users (id) on delete cascade,
+	user_id bigint not null references users (id) on delete cascade,
+	side text not null check (side in ('org', 'member')),
+	primary key (org_id, user_id, side)
+);
+alter table federation_outbox drop constraint if exists federation_outbox_kind_check;
+alter table federation_outbox add constraint federation_outbox_kind_check check (kind in ('user', 'post', 'like', 'repost', 'follow', 'affiliate', 'affiliation')) not valid;
+create or replace function federation_affiliation_changed() returns trigger language plpgsql as $$
+declare
+	org bigint := coalesce(new.org_id, old.org_id);
+	member bigint := coalesce(new.user_id, old.user_id);
+begin
+	if federation_local(org) then
+		if tg_table_name = 'affiliations' or not federation_local(member) then
+			insert into federation_outbox (kind, a, b) values ('affiliate', org, member);
+		end if;
+	elsif federation_local(member) and (tg_table_name = 'affiliations' or tg_op = 'DELETE') then
+		insert into federation_outbox (kind, a, b) values ('affiliation', member, org);
+	end if;
+	return null;
+end $$;
+create or replace trigger federation_affiliation_change after insert or delete on affiliations for each row execute function federation_affiliation_changed();
+create or replace trigger federation_affiliation_request_change after insert or delete on affiliation_requests for each row execute function federation_affiliation_changed();
+do $$ begin
+	if not exists (select 1 from schema_steps where name = 'federation_affiliations') then
+		insert into federation_outbox (kind, a, b) select 'affiliate', a.org_id, a.user_id from affiliations a join users o on o.id = a.org_id where o.instance is null;
+		insert into schema_steps (name) values ('federation_affiliations');
+	end if;
+end $$;
 
 do $$ begin
 	if not exists (select 1 from schema_steps where name = 'federation_backfill') then

@@ -623,8 +623,9 @@ const ACTIONS: Record<string, Action> = {
 		run: async (a, b) => {
 			const orgId = idOf(b.orgId, "organisation");
 			if (!(await sql`select 1 from users where id = ${orgId}::bigint`).length) throw new AdminError("No such account.", 404);
-			const [u] = await sql`select id::text as id from users where lower(screen_name) = lower(${String(b.screen_name ?? "").replace(/^@/, "")})`;
+			const [u] = await sql`select id::text as id, instance from users where lower(screen_name) = lower(${String(b.screen_name ?? "").replace(/^@/, "")})`;
 			if (!u) throw new AdminError("No account with that handle.");
+			if (u.instance) throw new AdminError("That account is on another instance. The organisation can ask them from its Organisation page, and they accept on their own instance.");
 			await guard(a, u.id, true);
 			await sql`insert into affiliations (org_id, user_id) values (${orgId}::bigint, ${u.id}::bigint) on conflict do nothing`.catch((e) => {
 				throw /affiliation_limit/.test(String(e?.message)) ? new AdminError(`That account is already an affiliate of ${AFFILIATION_LIMIT} organisations.`) : e;
