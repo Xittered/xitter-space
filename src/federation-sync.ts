@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { flagValue } from "./flags";
+import { pronounsValue } from "./pronouns";
 import { badgesOf } from "./users";
 import { FederationError, INSTANCE_ID, type Incoming, isBlocked, isPeer, peers, signedAnswer, signedFetch, signedRawAnswer } from "./federation";
 import { newId } from "./ids";
@@ -74,7 +75,7 @@ const USER_COUNTS = ["followers", "following", "posts", "likes"];
 const POST_COUNTS = ["likes", "reposts", "replies", "quotes", "bookmarks", "views"];
 
 async function renderUser(id: string) {
-	const [u] = await sql`select id::text, screen_name, name, bio, location, website, avatar_url, banner_url, protected, created_at, verified_type, translator, flag, parody_label, decoration, ${badgesOf(sql`users.id`)} as badges from users
+	const [u] = await sql`select id::text, screen_name, name, bio, location, website, avatar_url, banner_url, protected, created_at, verified_type, translator, flag, pronouns, parody_label, decoration, ${badgesOf(sql`users.id`)} as badges from users
 		where id = ${id}::bigint and instance is null and status <> 'suspended' and deactivated_at is null`;
 	if (!u) return { kind: "user", id, gone: true };
 	return {
@@ -89,6 +90,7 @@ async function renderUser(id: string) {
 		verified_type: u.verified_type ?? null,
 		translator: u.translator ?? null,
 		flag: u.flag ?? null,
+		pronouns: u.pronouns ?? null,
 		parody_label: u.parody_label ?? "None",
 		decoration: parseDecoration(u.decoration),
 		badges: (u.badges ?? []).map((b: { id: string; name: string }) => ({ name: b.name, url: `${PUBLIC_ORIGIN}/public/badge-${b.id}.png` })),
@@ -290,6 +292,7 @@ export async function applyUser(instance: string, u: any): Promise<string | unde
 		verified_type: pick(u.verified_type, ["blue", "business", "government", "government_individual"]),
 		translator: pick(u.translator, ["translator", "moderator", "approver"]),
 		flag: flagValue(u.flag),
+		pronouns: pronounsValue(u.pronouns),
 		parody_label: pick(u.parody_label, ["Parody", "Commentary", "Fan"]) ?? "None",
 		remote_badges: JSON.stringify(badges),
 		decoration: JSON.stringify(parseDecoration(u.decoration)),
@@ -315,7 +318,7 @@ export async function applyUser(instance: string, u: any): Promise<string | unde
 	const avatar = await remoteMedia(instance, id, u.avatar, null, null);
 	const banner = await remoteMedia(instance, id, u.banner, null, null);
 	await sql`update users set avatar_url = ${avatar ? `/media/${avatar}` : null}, banner_url = ${banner ? `/media/banner/${banner}` : null},
-		remote_counts = ${countsOf(u.counts, USER_COUNTS)}::text::jsonb, verified_type = ${looks.verified_type}, translator = ${looks.translator}, flag = ${looks.flag}, parody_label = ${looks.parody_label}, remote_badges = ${looks.remote_badges}::text::jsonb, decoration = nullif(${looks.decoration}, 'null')::jsonb
+		remote_counts = ${countsOf(u.counts, USER_COUNTS)}::text::jsonb, verified_type = ${looks.verified_type}, translator = ${looks.translator}, flag = ${looks.flag}, pronouns = ${looks.pronouns}, parody_label = ${looks.parody_label}, remote_badges = ${looks.remote_badges}::text::jsonb, decoration = nullif(${looks.decoration}, 'null')::jsonb
 		where id = ${id}::bigint`;
 	if (u.protected) await sql`delete from posts where user_id = ${id}::bigint`;
 	return id;

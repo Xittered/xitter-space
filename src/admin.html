@@ -60,6 +60,9 @@
 	.field { display: grid; gap: 4px; margin-bottom: 10px; }
 	.field label { color: var(--dim); font-size: 13px; }
 	.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+	.ann-buttons { display: grid; gap: 8px; }
+	.ann-row [data-label] { flex: 1 1 140px; min-width: 0; }
+	.ann-row [data-url] { flex: 3 1 220px; min-width: 0; }
 	label.row { flex-wrap: nowrap; align-items: flex-start; }
 	label.row input { margin-top: 3px; flex: none; }
 	.flags { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -105,6 +108,7 @@
 "use strict";
 const csrf = (document.cookie.match(/(?:^|; )ct0=([^;]+)/) || [])[1] || "";
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const annRow = (b, dis) => '<div class="row ann-row"><input data-label maxlength="30" placeholder="Label, like More" aria-label="Button label" value="' + esc(b.label) + '"' + dis + '><input data-url type="url" inputmode="url" placeholder="https://" aria-label="Button link" value="' + esc(b.url) + '"' + dis + '>' + (dis ? "" : '<button class="btn" type="button" data-remove>Remove</button>') + "</div>";
 const $ = (sel, root = document) => root.querySelector(sel);
 const RANK = { support: 1, moderator: 2, admin: 3 };
 let me = null;
@@ -189,6 +193,7 @@ const PAGES = {
 	cards: { icon: "newspaper", title: "Explore cards" },
 	email: { icon: "mail", title: "Email" },
 	apps: { icon: "devices", title: "Client apps" },
+	oauth: { icon: "key", title: "OAuth apps" },
 	federation: { icon: "hub", title: "Federation" },
 	hosting: { icon: "dns", title: "Hosted instances", needs: "hostedInstances" },
 	settings: { icon: "tune", title: "Settings" },
@@ -718,6 +723,38 @@ const RENDER = {
 		});
 	},
 
+	async oauth(main) {
+		const { apps } = await api("oauthApps");
+		const state = (x) => x.blocked_at ? '<span class="pill suspended">blocked</span>' : x.revoked ? '<span class="pill suspended">revoked by developer</span>' : '<span class="pill">active</span>';
+		const who = (x) => x.metadata_url
+			? 'Client ID <span class="code">' + esc(x.metadata_url) + "</span>, not registered here"
+			: "Registered by " + (x.owner ? "@" + esc(x.owner) : "a deleted account") + ', returns to <span class="code">' + esc(x.redirect_uri) + "</span>";
+		main.innerHTML = "<h1>OAuth apps</h1>" +
+			'<p class="dim">Apps people can sign in to with their account here: ones registered under Developer apps, and ones that use the address of their own client ID document instead (they have no owner here). Blocking an app ends everyone\'s access to it and stops it asking again.</p>' +
+			(can("blockOAuthApp") ? '<div class="box" style="margin-bottom:16px"><h2>Block an app nobody has used yet</h2><div class="row"><input id="obu" placeholder="https://app.example/oauth-client.json" style="flex:2;min-width:220px"><input id="obr" placeholder="Reason" maxlength="500" style="flex:1;min-width:160px"><button class="btn danger" id="obgo">Block</button></div></div>' : "") +
+			'<div class="scroll">' + (apps.length
+				? '<table class="table"><tr><th>App</th><th>People using it</th><th>State</th><th></th></tr>' +
+					apps.map((x) => "<tr><td><b>" + esc(x.name) + '</b><div class="dim small">' + who(x) + "</div>" +
+						(x.blocked_at ? '<div class="dim small">Blocked ' + esc(when(x.blocked_at)) + (x.blocked_reason ? ": " + esc(x.blocked_reason) : "") + "</div>" : "") +
+						"</td><td>" + esc(String(x.grants)) + "</td><td>" + state(x) + "</td><td>" +
+						(x.blocked_at
+							? (can("unblockOAuthApp") ? '<button class="btn" data-unblock="' + esc(x.id) + '">Unblock</button>' : "")
+							: !x.revoked && can("blockOAuthApp") ? '<button class="btn danger" data-block="' + esc(x.id) + '">Block</button>' : "") +
+						"</td></tr>").join("") + "</table>"
+				: '<div class="empty">No OAuth apps yet.</div>') + "</div>";
+		const block = async (body, name) => {
+			if (!(await ask("Block " + name + "? Everyone signed in to it here loses access, and it can't ask again until you unblock it."))) return;
+			act(() => api("blockOAuthApp", body), "Blocked").then(route);
+		};
+		if ($("#obgo")) $("#obgo").onclick = () => block({ url: $("#obu").value.trim(), reason: $("#obr").value }, $("#obu").value.trim());
+		main.querySelectorAll("[data-block]").forEach((b) => b.onclick = async () => {
+			const reason = prompt("Why block it? (optional, staff see this)");
+			if (reason === null) return;
+			block({ id: b.dataset.block, reason }, b.closest("tr").querySelector("b").textContent);
+		});
+		main.querySelectorAll("[data-unblock]").forEach((b) => b.onclick = () => act(() => api("unblockOAuthApp", { id: b.dataset.unblock }), "Unblocked").then(route));
+	},
+
 	async federation(main) {
 		const f = await api("federation");
 		const state = (i) => i.block
@@ -1064,9 +1101,16 @@ const RENDER = {
 			[["none", "No badge"], ["blue", "Blue check"], ["business", "Gold check (organisations)"], ["government", "Grey check (government organisations and officials)"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-postlen="' + k + '" value="' + esc(s.post_limits[k]) + '"' + dis + "></div>").join("") +
 			(admin ? '<button class="btn primary" id="savePostLen">Save</button>' : "") + "</div>" +
+			'<div class="box"><h2>Daily caps</h2><p class="dim small">The most posts and replies one account may make in any 24 hours. Staff have no caps.</p>' +
+			'<label class="row" style="margin:6px 0"><input type="checkbox" id="capsOn"' + (s.daily_caps.enabled ? " checked" : "") + dis + "> Cap posts and replies per day</label>" +
+			'<div class="field"><label>Posts a day</label><input type="number" min="1" id="capPosts" value="' + esc(s.daily_caps.posts) + '"' + dis + "></div>" +
+			'<div class="field"><label>Replies a day</label><input type="number" min="1" id="capReplies" value="' + esc(s.daily_caps.replies) + '"' + dis + "></div>" +
+			(admin ? '<button class="btn primary" id="saveCaps">Save</button>' : "") + "</div>" +
 			'<div class="box"><h2>Announcement</h2><p class="dim small">A banner above everyone\'s timeline until they close it. Saving new text shows it again to everyone.</p>' +
 			'<div class="field"><label>Text (empty removes the banner)</label><textarea id="annText" maxlength="500"' + dis + ">" + esc(s.announcement.text) + "</textarea></div>" +
-			'<div class="field"><label>Link (optional)</label><input id="annLink" value="' + esc(s.announcement.link) + '"' + dis + "></div>" +
+			'<div class="field"><label>Buttons (up to 4, each opens its link in a new tab)</label><div id="annButtons" class="ann-buttons">' +
+			((s.announcement.buttons && s.announcement.buttons.length) ? s.announcement.buttons : s.announcement.link ? [{ label: "More", url: s.announcement.link }] : []).map((b) => annRow(b, dis)).join("") +
+			"</div>" + (admin ? '<button class="btn" id="addAnnBtn" type="button" style="margin-top:8px">Add button</button>' : "") + "</div>" +
 			(admin ? '<button class="btn primary" id="saveAnn">Save</button>' : "") + "</div>" +
 			'<div class="box"><h2>Rules</h2><p class="dim small">Shown at <a href="/rules" target="_blank">/rules</a> and linked from sign-up. A blank line starts a new paragraph.</p>' +
 			'<textarea id="rules" style="min-height:160px"' + dis + ">" + esc(s.rules) + "</textarea>" +
@@ -1150,7 +1194,17 @@ const RENDER = {
 			main.querySelectorAll("[data-postlen]").forEach((i) => r[i.dataset.postlen] = i.value);
 			save({ post_limits: r }, "Post lengths saved");
 		};
-		$("#saveAnn").onclick = () => save({ announcement: { text: $("#annText").value, link: $("#annLink").value } }, "Announcement saved");
+		if ($("#saveCaps")) $("#saveCaps").onclick = () => save({ daily_caps: { enabled: $("#capsOn").checked, posts: $("#capPosts").value, replies: $("#capReplies").value } }, "Daily caps saved");
+		const annList = $("#annButtons");
+		const annFull = () => { if ($("#addAnnBtn")) $("#addAnnBtn").disabled = annList.children.length >= 4; };
+		annFull();
+		if ($("#addAnnBtn")) $("#addAnnBtn").onclick = () => {
+			annList.insertAdjacentHTML("beforeend", annRow({ label: annList.children.length ? "" : "More", url: "" }, ""));
+			annList.lastElementChild.querySelector("input").focus();
+			annFull();
+		};
+		annList.onclick = (e) => { const x = e.target.closest("[data-remove]"); if (x) { x.closest(".ann-row").remove(); annFull(); } };
+		$("#saveAnn").onclick = () => save({ announcement: { text: $("#annText").value, buttons: [...annList.querySelectorAll(".ann-row")].map((r) => ({ label: r.querySelector("[data-label]").value, url: r.querySelector("[data-url]").value })) } }, "Announcement saved");
 		$("#saveRules").onclick = () => save({ rules: $("#rules").value }, "Rules saved");
 		const listOf = (id) => $(id).value.split("\n").map((x) => x.trim()).filter(Boolean);
 		// accounts that already carry a blocked name, then suspend them in one go
