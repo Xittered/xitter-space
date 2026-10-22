@@ -5,6 +5,7 @@
 
 import { FEDERATION_ON } from "./federation";
 import { sql } from "./db";
+import { isOrganizationSql } from "./users";
 import { type Feature, feature, settings } from "./settings";
 
 const links = (...hrefs: string[]) => hrefs.map((h) => `a[href="${h}"],a[href^="${h}?"]`);
@@ -88,7 +89,8 @@ export async function menuLinks(userId: string): Promise<MenuLink[]> {
 	links.push({ href: "/account/apps", text: "Connected apps", description: "Review and remove apps authorized to use your account.", icon: CODE, viewBox: "0 -960 960 960", where: "settings" });
 	if (s.invite_quota.enabled && s.signup_mode === "invite")
 		links.push({ href: "/account/invites", text: "Invites", description: `Invite people you know to ${s.instance_name}.`, icon: TICKET, where: "both" });
-	const [u] = await sql`select coalesce(u.verified_type in ('business', 'government'), false) or exists (select 1 from affiliations where org_id = u.id)
+	// the menu is for organisations, and for the people in or invited to one
+	const [u] = await sql`select ${isOrganizationSql(sql`u`)}
 			or exists (select 1 from affiliations where user_id = u.id) or exists (select 1 from affiliation_requests where user_id = u.id) as org,
 		exists (select 1 from staff_messages where user_id = u.id and revoked_at is null) or exists (select 1 from moderation_appeals where user_id = u.id) as notices,
 		coalesce(u.verified_type in ('business', 'government', 'government_individual'), false) as gold

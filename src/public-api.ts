@@ -13,12 +13,12 @@ import { sql } from "./db";
 import { callOperation } from "./graphql";
 import { isId, newId } from "./ids";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
-import type { PostRow } from "./model";
+import { type PostRow, badgeList, isOrganization, isVerified, verifiedSince } from "./model";
 import { PostError, feed, getPost, postsByIds, replies, type FeedItem } from "./posts";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { searchPosts, searchUsers } from "./search";
 import { settings } from "./settings";
-import { followList, setFollow, userByName, usersByIds } from "./users";
+import { badgeUrl, followList, setFollow, userByName, usersByIds } from "./users";
 
 const hash = (token: string) => new Bun.CryptoHasher("sha256").update(token).digest("hex");
 const MAX_TOKENS = 10;
@@ -72,6 +72,7 @@ async function tokenViewer(req: Request): Promise<{ viewer: Viewer; scope: strin
 const iso = (d: Date | string | null | undefined) => (d ? new Date(d).toISOString() : null);
 
 function userJson(u: User) {
+	const shown = badgeList(u);
 	return {
 		id: u.id,
 		screen_name: u.screen_name,
@@ -82,6 +83,23 @@ function userJson(u: User) {
 		avatar_url: absolute(u.avatar_url),
 		banner_url: absolute(u.banner_url),
 		verified_type: u.verified_type,
+		// what the web client shows, from the same rules (model.ts): a checkmark
+		// also for an organisation's affiliates, and its "Verified since" date
+		verified: isVerified(u),
+		verified_since: iso(isVerified(u) ? verifiedSince(u) : null),
+		// X's profile labels: "Parody", "Commentary" or "Fan"; one an admin made
+		// (Admin > Labels); and a bot's owner, for "Automated by @owner"
+		parody_label: u.parody_label && u.parody_label !== "None" ? u.parody_label : null,
+		label: u.label ? { text: u.label.text, url: u.label.url ?? null, badge_url: u.label.badge_id ? badgeUrl(u.label.badge_id) : null } : null,
+		automated_by: u.automated_by ?? null,
+		// a business account: a business or government, or anyone with affiliates
+		organization: isOrganization(u),
+		...(isOrganization(u) ? { affiliates_count: u.affiliates ?? 0 } : {}),
+		// what it wears after its name, as the web client draws it (badgeList):
+		// its organisations first, then custom badges, pride flags and, for an
+		// account from another instance, a globe
+		affiliations: shown.flatMap((b) => (b.org ? [{ screen_name: b.org, name: b.description, badge_url: b.url }] : [])),
+		badges: shown.filter((b) => !b.org).map((b) => ({ name: b.description, url: b.url })),
 		protected: !!u.protected,
 		created_at: iso(u.created_at),
 		url: `${PUBLIC_ORIGIN}/${u.screen_name}`,
