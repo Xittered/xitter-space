@@ -308,10 +308,16 @@ const ROUTES: Route[] = [
 			const q = (url.searchParams.get("q") ?? "").trim().slice(0, 500);
 			if (!q) throw new ApiError(400, "Give a query in q.");
 			const limit = limitOf(url);
-			const ids = await searchPosts(q, { viewerId: v.id, top: url.searchParams.get("sort") === "top", limit, before: cursorOf(url) });
+			const top = url.searchParams.get("sort") === "top";
+			// Top is ranked, so its cursor is an offset ("o<n>"), as the client's
+			// search is; an id cursor works for the newest-first listing.
+			const cursor = url.searchParams.get("cursor") ?? "";
+			const offset = top && /^o(\d{1,6})$/.test(cursor) ? Number(cursor.slice(1)) : 0;
+			const ids = await searchPosts(q, { viewerId: v.id, top, limit, before: top ? undefined : cursorOf(url), offset });
 			const byId = await postsByIds(v.id, ids);
 			const data = (ids as string[]).map((id) => byId.get(id)).filter((p): p is PostRow => !!p).map((p) => postJson(p));
-			return { data, next_cursor: ids.length >= limit ? ids[ids.length - 1] : null };
+			const next = ids.length >= limit ? (top ? `o${offset + limit}` : ids[ids.length - 1]) : null;
+			return { data, next_cursor: next };
 		},
 	},
 	{

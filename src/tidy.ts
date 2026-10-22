@@ -308,7 +308,7 @@ export const TIDY_SCRIPT = `(function(){
 	function footer(){
 		var nav=document.querySelector('nav[aria-label="Footer"]');
 		if(!nav||nav.querySelector("[data-xitter-source]"))return;
-		var c=[].find.call(nav.querySelectorAll("span"),function(s){return /^\u00a9 \d{4} .* Corp\.$/.test(s.textContent)});
+		var c=[].find.call(nav.querySelectorAll("span"),function(s){return /^\u00a9 \\d{4} .* Corp\\.$/.test(s.textContent)});
 		if(!c)return;
 		c.textContent=T.instance+" · ";
 		var a=document.createElement("a");
