@@ -150,17 +150,18 @@ pre{background:var(--surface);border-radius:12px;padding:12px 16px;overflow-x:au
 @media (max-width:600px){.col{border-inline:0}}
 /* inside the client's Settings (tidy.ts): its own list replaces the tabs, and
    the frame grows with the page, so nothing may size itself to the frame */
-.framed,.framed body{overflow:hidden}
-.framed .col{min-height:0;width:100%;border-inline:0}
-.framed .bar{position:static}
-.framed .tabs,.framed .source{display:none}
+html[data-in-settings],html[data-in-settings] body{overflow:hidden}
+html[data-in-settings] .col{min-height:0;width:100%;border-inline:0}
+html[data-in-settings] .bar{position:static}
+html[data-in-settings] .tabs,html[data-in-settings] .source{display:none}
 `;
 
 // Runs in the frame: our own pages stay in it, the client's pages open in the
 // client around it without a reload, other sites in a new tab
 const FRAMED = `(function(){
 	if(top===self)return;
-	document.documentElement.classList.add("framed");
+	// an attribute, not a class: pages have their own .framed (decor.ts)
+	document.documentElement.setAttribute("data-in-settings","");
 	document.addEventListener("click",function(e){
 		var a=e.target.closest&&e.target.closest("a[href]");
 		if(!a||e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||a.target==="_blank"||a.hasAttribute("download"))return;
