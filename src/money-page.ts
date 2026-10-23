@@ -291,7 +291,9 @@ async function quickPicks(userId: string) {
 				union all select followee_id, created_at - interval '100 years' from follows where follower_id = ${userId}::bigint
 			) x group by o order by at desc limit 8
 		) p join users u on u.id = p.o
-		where u.instance is null and u.status <> 'suspended' and u.deactivated_at is null order by p.at desc`;
+		where u.instance is null and u.status <> 'suspended' and u.deactivated_at is null
+			and not exists (select 1 from blocks b where (b.blocker_id = u.id and b.blocked_id = ${userId}::bigint) or (b.blocker_id = ${userId}::bigint and b.blocked_id = u.id))
+		order by p.at desc`;
 	const found = await parties(rows.map((r: any) => r.id));
 	return rows.map((r: any) => found.get(r.id)).filter((p: Party | undefined): p is Party => !!p);
 }

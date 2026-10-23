@@ -94,6 +94,11 @@ export const moneyActions: Record<string, Action> = {
 				await tx`update money_wallets set balance_cents = balance_cents - ${amount} where user_id = ${t.recipient_id}::bigint`;
 				await tx`update money_wallets set balance_cents = balance_cents + ${amount} where user_id = ${t.sender_id}::bigint`;
 				await tx`update money_transfers set reversed_at = now(), reversed_by = ${a.id}::bigint where id = ${id}::bigint`;
+				// a request paid by this transfer is unpaid again, so its payer can retry
+				await tx`update money_requests q set status = 'open', resolved_at = null
+					where q.id = (select t.request_id from money_transfers t where t.id = ${id}::bigint)
+						and q.payer_id is not null and q.status = 'paid'
+						and not exists (select 1 from money_transfers t where t.request_id = q.id and t.reversed_at is null)`;
 				await audit(a, "money_reverse", id, { amount, from: t.recipient_id, to: t.sender_id });
 				return {};
 			});

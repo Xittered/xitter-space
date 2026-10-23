@@ -190,6 +190,21 @@ try {
 	const [paidReq] = await sql`select status from money_requests where id = ${reqId}::bigint`;
 	check("paying it pays and closes it", r.status === 303 && paidReq.status === "paid" && (await balance(b)) === 10500, [r.status, paidReq.status]);
 	check("it can't be paid twice", (await sa.form("/account/money/send", { to: b, amount: "5", request: reqId!, idem: crypto.randomUUID() })).status >= 400 && (await balance(b)) === 10500);
+
+	// reversing a request's payment puts it back in front of its payer
+	r = await sb.form("/account/money/request", { from: a, amount: "2", note: "reverse me" });
+	const revReqId = /\/r\/(\d+)/.exec(r.headers.get("location") ?? "")?.[1];
+	r = await sa.form("/account/money/send", { to: b, amount: "2", request: revReqId!, idem: crypto.randomUUID() });
+	const revPayId = new URL(r.headers.get("location")!, origin).searchParams.get("sent")!;
+	check("a request can be paid", r.status === 303 && (await sb.page(`/r/${revReqId}`)).includes("Paid"), r.status);
+	r = await admin(sa, "reverseTransfer", { id: revPayId });
+	const [reopened] = await sql`select status, resolved_at from money_requests where id = ${revReqId}::bigint`;
+	check("reversing its payment reopens the request", r.status === 200 && reopened?.status === "open" && reopened?.resolved_at === null, [r.status, reopened]);
+	const reopenedPage = await sb.page(`/r/${revReqId}`);
+	check("and it no longer counts as paid", reopenedPage.includes("Waiting") && !reopenedPage.includes("Paid"));
+	r = await sa.form("/account/money/send", { to: b, amount: "2", request: revReqId!, idem: crypto.randomUUID() });
+	check("so the payer can pay it again", r.status === 303, r.status);
+
 	r = await sb.form("/account/money/request", { from: a, amount: "3", note: "" });
 	const declineId = /\/r\/(\d+)/.exec(r.headers.get("location") ?? "")?.[1];
 	await sa.form(`/account/money/r/${declineId}`, { action: "decline" });
@@ -210,8 +225,11 @@ try {
 	check("its owner's Pay button opens the request instead", ownCard.includes("xm-pay") && ownCard.includes(`/account/money/r/${openId}`) && !ownCard.includes("send?request="));
 	check("the card leads to the account to pay", payCard.includes(`data-xm-go="/${b}"`));
 	r = await sc.form("/account/money/send", { to: b, amount: "2.25", request: openId, idem: crypto.randomUUID() });
+	const openPayC = new URL(r.headers.get("location")!, origin).searchParams.get("sent")!;
 	r = await sa.form("/account/money/send", { to: b, amount: "1", request: openId, idem: crypto.randomUUID() });
 	check("anyone pays it, as often as they like", (await sb.page(`/r/${openId}`)).includes("2 times"));
+	await admin(sa, "reverseTransfer", { id: openPayC });
+	check("a reversed payment no longer counts toward an open request", (await sb.page(`/r/${openId}`)).includes("1 time · $1.00"));
 	const copiedPay = (await sc.gql("CreateTweet", { tweet_text: `pay them ${payMe.url}` })).data.create_tweet.tweet_results.result;
 	check("someone else's post with it gets no card", !copiedPay.card);
 
@@ -245,6 +263,8 @@ try {
 	await sql`insert into blocks (blocker_id, blocked_id) values (${ids[2]}::bigint, ${ids[1]}::bigint) on conflict do nothing`;
 	const forB = await (await fetch(`${origin}/account/money/people?q=${c}`, { headers: sb.headers })).json();
 	check("not accounts that blocked you", Array.isArray(forB) && !forB.some((p: any) => p.screen_name === c));
+	const bSend = await sb.page("/send");
+	check("quick picks leave out accounts that blocked you", !bSend.includes(`data-handle="${c}"`), bSend.match(/data-handle="[^"]+"/g));
 	await sql`delete from blocks where blocker_id = ${ids[2]}::bigint and blocked_id = ${ids[1]}::bigint`;
 	check("odd input lists nothing", (await people("%_")).length === 0 && (await people("")).length === 0);
 
@@ -256,6 +276,8 @@ try {
 	await sql`update users set status = 'restricted' where id = ${ids[2]}::bigint`;
 	const refused = await sc.form("/account/money/request", { from: a, amount: "1", note: "" });
 	check("a restricted account can't ask for money", refused.status === 400 && (await refused.text()).includes("can't ask for money"));
+	const payMeRefused = await fetch(`${origin}/i/api/xitter/money/payme`, { method: "POST", headers: { ...sc.headers, "x-csrf-token": csrfOf(sc) } });
+	check("and its Pay button gets a clean refusal", payMeRefused.status === 403 && (await payMeRefused.text()).includes("can't ask for money"), payMeRefused.status);
 	await sql`update users set status = 'active' where id = ${ids[2]}::bigint`;
 	await sql`update users set role = 'moderator' where id = ${ids[1]}::bigint`;
 	const modView = await (await admin(sb, "money")).json();

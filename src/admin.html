@@ -12,13 +12,14 @@
 	body { margin: 0; background: var(--bg); color: var(--text); font: 15px system-ui, -apple-system, "Segoe UI", sans-serif; }
 	a { color: var(--blue); text-decoration: none; }
 	.icon { font-family: "Material Symbols Outlined"; font-size: 20px; line-height: 1; vertical-align: middle; }
-	.app { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
-	nav { border-right: 1px solid var(--line); padding: 16px 12px; position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; }
+	.app { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
+	nav { border-right: 1px solid var(--line); padding: 16px 12px; position: sticky; top: 0; height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none; }
+	nav::-webkit-scrollbar { display: none; }
 	nav .logo { width: 128px; margin: 4px 8px 20px; display: block; }
 	nav button { display: flex; align-items: center; gap: 12px; width: 100%; padding: 7px 12px; border: 0; border-radius: 999px; background: none; color: var(--text); font: inherit; font-size: 15px; text-align: left; cursor: pointer; }
 	nav button:hover { background: var(--panel); }
 	nav button.on { font-weight: 700; }
-	/* 28 pages didn't fit a laptop screen: they sit in groups, one open at a time */
+	/* 28 pages didn't fit a laptop screen: they sit in collapsible groups */
 	nav .ghead { margin-top: 6px; color: var(--dim); font-size: 14px; font-weight: 600; }
 	nav .ghead > span:first-child { flex: 1; }
 	nav .ghead .icon { transition: rotate .15s; }
@@ -28,13 +29,37 @@
 	nav .group.open .gitems, nav .group.solo .gitems { display: block; }
 	nav .end { margin-top: 12px; }
 	nav .who { margin-top: 24px; padding: 0 12px; color: var(--dim); font-size: 13px; }
-	main { padding: 20px 24px 64px; max-width: 1100px; min-width: 0; }
+	main { padding: 20px 24px 64px; width: 100%; max-width: 1440px; min-width: 0; margin: 0 auto; }
 	h1 { margin: 0 0 16px; font-size: 22px; }
 	h2 { margin: 24px 0 10px; font-size: 17px; }
 	.bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
 	/* else a display rule like .bar's above shows what's meant to be hidden (the bulk bars) */
 	[hidden] { display: none !important; }
 	input, select, textarea { padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: inherit; font: inherit; }
+	select { appearance: none; padding-right: 38px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371767b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 16px; cursor: pointer; }
+	input[type="checkbox"] { appearance: none; display: inline-grid; place-content: center; align-self: center; flex: none; width: 18px; height: 18px; margin: 0; padding: 0; border: 1px solid #536471; border-radius: 6px; background: var(--bg); cursor: pointer; }
+	input[type="checkbox"]:hover:not(:disabled) { border-color: var(--dim); }
+	input[type="checkbox"]::before { content: ""; width: 8px; height: 4px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg) scale(0); transition: transform .1s ease-in-out; }
+	input[type="checkbox"]:checked { border-color: var(--blue); background: var(--blue); }
+	input[type="checkbox"]:checked::before { transform: rotate(-45deg) scale(1); }
+	input[type="checkbox"]:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+	input[type="checkbox"]:disabled { opacity: .5; cursor: not-allowed; }
+	.number-stepper { display: inline-grid; grid-template-columns: minmax(0, 1fr) 24px; width: 94px; height: 40px; }
+	.number-stepper:focus-within { outline: 2px solid var(--blue); outline-offset: 1px; border-radius: 7px; }
+	.number-stepper > input { width: 70px; min-width: 0; height: 40px; padding: 8px; border-radius: 6px 0 0 6px; }
+	.number-stepper > input:focus { outline: 0; border-color: var(--line); }
+	.number-stepper input[type="number"]::-webkit-inner-spin-button, .number-stepper input[type="number"]::-webkit-outer-spin-button { appearance: none; -webkit-appearance: none; margin: 0; }
+	.number-stepper .step-buttons { display: grid; grid-template-rows: 1fr 1fr; min-width: 0; }
+	.number-stepper button { display: grid; place-items: center; min-width: 0; padding: 0; border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+	.number-stepper button:hover { background: #202327; }
+	.number-stepper button:focus-visible { position: relative; z-index: 1; outline: 0; }
+	.number-stepper button:first-child { border-left: 0; border-radius: 0 6px 0 0; }
+	.number-stepper button:last-child { border-top: 0; border-left: 0; border-radius: 0 0 6px 0; }
+	.number-stepper .arrow { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; }
+	.number-stepper .arrow.up { border-bottom: 5px solid var(--dim); }
+	.number-stepper .arrow.down { border-top: 5px solid var(--dim); }
+	.number-stepper button:hover .arrow.up { border-bottom-color: var(--blue); }
+	.number-stepper button:hover .arrow.down { border-top-color: var(--blue); }
 	input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); border-color: transparent; }
 	textarea { width: 100%; min-height: 70px; resize: vertical; }
 	.btn { padding: 8px 16px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -42,8 +67,9 @@
 	.btn.primary { background: var(--text); color: #0f1419; border-color: var(--text); }
 	.btn.danger { color: var(--red); border-color: rgba(244,33,46,.5); }
 	.btn:disabled { opacity: .5; cursor: default; }
-	.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
-	.card { background: var(--panel); border-radius: 12px; padding: 14px 16px; }
+	.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr)); gap: 10px; min-width: 0; }
+	.cards + .grid2 { margin-top: 16px; }
+	.card { min-width: 0; background: var(--panel); border-radius: 12px; padding: 14px 16px; }
 	.card b { display: block; font-size: 24px; margin-top: 4px; }
 	.card span { color: var(--dim); font-size: 13px; }
 	.table { width: 100%; border-collapse: collapse; }
@@ -51,6 +77,95 @@
 	/* a post that's one long word ("aaaa…") stretched the table and pushed every
 	   row's buttons off the side */
 	.table td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; overflow-wrap: anywhere; }
+	.switch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+	.switch-card { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+	.switch-card-name { margin: 0; font: 600 13px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+	.switch-card-value { min-width: 0; }
+	.switch-card-value pre { max-height: 104px; margin: 5px 0 0; padding: 8px; overflow: auto; border-radius: 6px; background: var(--bg); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); font: 12px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; scrollbar-width: thin; scrollbar-color: #536471 var(--bg); }
+	.switch-card-value pre::-webkit-scrollbar { width: 8px; height: 8px; }
+	.switch-card-value pre::-webkit-scrollbar-track { background: var(--bg); border-radius: 999px; }
+	.switch-card-value pre::-webkit-scrollbar-thumb { background: #536471; border: 2px solid var(--bg); border-radius: 999px; }
+	.switch-card-value pre::-webkit-scrollbar-thumb:hover { background: var(--blue); }
+	.switch-card input[data-val] { width: 100%; min-width: 0; }
+	.switch-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+	.switch-card-actions.editable { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; }
+	.switch-card-actions.editable input[data-val] { grid-column: 1; }
+	.switch-paging { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 12px 0; }
+	.switch-paging-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+	.switch-paging select { min-width: 84px; }
+	.audit-list { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+	.audit-entry { display: grid; gap: 10px; min-width: 0; padding: 13px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+	.audit-entry-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+	.audit-entry-heading h2 { margin: 0; font-size: 16px; text-transform: capitalize; }
+	.audit-entry-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+	.audit-entry-body { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 18px; align-items: start; }
+	.audit-entry-target, .audit-entry-detail { min-width: 0; }
+	.audit-entry-target { max-width: min(280px, 35vw); overflow-wrap: anywhere; }
+	.audit-entry-detail pre { max-height: 140px; margin: 4px 0 0; padding: 7px 9px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+	.audit-paging { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin: 12px 0; }
+	.security-grid { align-items: start; }
+	.security-settings h2 { margin: 0 0 10px; font-size: 17px; }
+	.security-grid .field { margin: 10px 0 0; }
+	.security-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+	.security-settings + .box { margin-top: 16px; }
+	.security-session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; }
+	.security-session-card { display: grid; align-content: start; gap: 14px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+	.security-session-heading { display: grid; gap: 5px; min-width: 0; }
+	.security-session-heading > div { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+	.security-session-heading a, .security-session-browser { overflow-wrap: anywhere; }
+	.security-session-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+	.security-session-meta > div { display: grid; gap: 3px; min-width: 0; }
+	.security-session-meta span { color: var(--dim); font-size: 12px; }
+	.security-session-meta b { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+	.security-session-actions { display: flex; justify-content: flex-end; }
+	.archive-import-approval { display: flex; align-items: center; gap: 9px; margin: 8px 0 4px; line-height: 1.4; cursor: pointer; }
+	.archive-import-approval input { flex: none; margin: 0; }
+	.archive-import-approval, .automod-toggle { min-height: 28px; justify-content: flex-start; text-align: left; }
+	label.row.automod-toggle { align-items: center; }
+	label.row.automod-toggle input { margin-top: 0; }
+	.archive-import-actions, .automod-actions { display: flex; justify-content: flex-start; margin-top: 6px; }
+	.archive-import-pending { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+	.archive-import-pending h2 { margin: 0 0 8px; font-size: 15px; }
+	.federation-current pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+	.instance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+	.instance-search-bar { align-items: center; }
+	.instance-search-bar input { flex: 1; min-width: min(100%, 280px); }
+	.instance-card { display: grid; gap: 12px; min-width: 0; padding: 14px 16px; background: var(--panel); border-radius: 12px; }
+	.instance-card[hidden] { display: none; }
+	.instance-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+	.instance-card-heading > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+	.instance-card-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+	.instance-card-stats > div { display: grid; gap: 3px; }
+	.instance-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+	.user-admin-header { display: grid; gap: 14px; margin-bottom: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+	.user-admin-back { width: fit-content; }
+	.user-admin-identity { display: flex; align-items: center; gap: 14px; min-width: 0; }
+	.user-admin-avatar { width: 56px; height: 56px; flex: none; border-radius: 50%; object-fit: cover; background: var(--panel); }
+	.user-admin-title { min-width: 0; }
+	.user-admin-title h1 { margin: 0 0 4px; overflow-wrap: anywhere; }
+	.user-admin-subtitle { color: var(--dim); font-size: 14px; }
+	.user-admin-open { margin-left: auto; }
+	.user-admin-facts { display: flex; flex-wrap: wrap; gap: 8px 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+	.user-admin-facts span { color: var(--dim); font-size: 13px; }
+	.user-admin-facts b { color: var(--text); font-weight: 500; }
+	.user-instance-note { margin: 0 0 16px; padding: 12px 14px; border-left: 3px solid var(--blue); border-radius: 6px; background: var(--panel); }
+	.user-admin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+	.user-admin-column { display: grid; align-content: start; gap: 16px; min-width: 0; }
+	.user-admin-column > .box { min-width: 0; margin: 0 !important; }
+	.user-related-grid > .box { display: inline-block; width: 100%; min-width: 0; margin: 0 0 16px !important; vertical-align: top; break-inside: avoid; }
+	.user-admin-grid .field > input, .user-admin-grid .field > select, .user-admin-grid .field > textarea { width: 100%; min-width: 0; }
+	.user-related-grid .user-history { display: block; width: auto; column-span: all; }
+	.user-related-grid { columns: 2; column-gap: 16px; margin-top: 16px; }
+	.user-related-links { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+	.user-admin-grid .box > h2, .user-related-grid .box > h2 { margin-top: 0; }
+	.user-card-profile .field, .user-card-identity .field { margin-bottom: 12px; }
+	.user-card-profile .row > label { min-width: 0; }
+	.user-card-profile [data-count] { width: 100%; min-width: 0; margin-top: 4px; }
+	.user-admin-grid .list > p { padding: 10px 0; border-bottom: 1px solid var(--line); }
+	.user-admin-grid .list > p:last-child { border-bottom: 0; }
+	.user-history .table { table-layout: fixed; }
+	.user-history .table td:first-child { width: 175px; }
+	.user-history .table td:last-child { width: 30%; overflow-wrap: anywhere; }
 	.table tr.click { cursor: pointer; }
 	.table tr.click:hover td { background: var(--panel); }
 	.scroll { overflow-x: auto; }
@@ -67,8 +182,33 @@
 	.pill.suspended { color: var(--red); border-color: rgba(244,33,46,.5); }
 	.pill.restricted, .pill.limited { color: var(--gold); border-color: rgba(226,183,25,.5); }
 	.pill.staff { color: var(--blue); border-color: rgba(29,155,240,.5); }
-	.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-	.box { background: var(--panel); border-radius: 12px; padding: 16px; }
+	.permission-group { margin: 18px 0; padding: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+	.permission-group h2 { margin: 0 0 8px; }
+	.permission-header, .permission-row { display: grid; grid-template-columns: minmax(0, 1fr) 88px 88px; gap: 12px; align-items: center; }
+	.permission-header { padding: 4px 0 8px; color: var(--dim); font-size: 13px; text-align: center; }
+	.permission-header span:first-child { text-align: left; }
+	.permission-row { min-height: 64px; padding: 10px 0; border-top: 1px solid var(--line); }
+	.permission-copy { display: grid; gap: 4px; min-width: 0; line-height: 1.4; }
+	.permission-default { color: var(--dim); font-size: 13px; }
+	.permission-toggle { display: grid; place-items: center; min-height: 40px; cursor: pointer; }
+	.permission-toggle input { margin: 0; }
+	.feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 4px 14px; margin: 10px 0; }
+	.feature-option { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: center; min-width: 0; padding: 5px 0; line-height: 1.4; cursor: pointer; }
+	.feature-option input { margin: 0; }
+	.feature-option.wide { grid-column: 1 / -1; }
+	.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 16px; min-width: 0; }
+	.settings-sections { display: grid; gap: 26px; }
+	.settings-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 20px; }
+	.settings-section { scroll-margin-top: 16px; }
+	.settings-section > h2 { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-size: 20px; }
+	.settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: start; }
+	.settings-column { display: grid; align-content: start; gap: 16px; min-width: 0; }
+	.overview-stats { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+	.overview-content { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+	.overview-charts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+	.overview-lists { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+	.overview-charts + .overview-lists { margin-top: 16px; }
+	.box { min-width: 0; background: var(--panel); border-radius: 12px; padding: 16px; }
 	.box h2 { margin-top: 0; }
 	.field { display: grid; gap: 4px; margin-bottom: 10px; }
 	.field label { color: var(--dim); font-size: 13px; }
@@ -76,8 +216,48 @@
 	.ann-buttons { display: grid; gap: 8px; }
 	.ann-row [data-label] { flex: 1 1 140px; min-width: 0; }
 	.ann-row [data-url] { flex: 3 1 220px; min-width: 0; }
-	label.row { flex-wrap: nowrap; align-items: flex-start; }
-	label.row input { margin-top: 3px; flex: none; }
+	.card-form { display: grid; gap: 16px; }
+	.card-basic-grid { display: grid; grid-template-columns: minmax(140px, .7fr) repeat(2, minmax(0, 1.5fr)); gap: 12px; }
+	.card-basic-grid .card-wide { grid-column: span 2; }
+	.card-sports-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+	.card-form .field { min-width: 0; margin: 0; }
+	.card-form .field > span { color: var(--dim); font-size: 13px; }
+	.card-form .field input, .card-form .field select { width: 100%; min-width: 0; }
+	.card-options-grid { display: grid; grid-template-columns: minmax(220px, 2fr) minmax(220px, 1.5fr) minmax(120px, .7fr) auto; gap: 12px; align-items: end; }
+	.card-upload { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 40px; }
+	.card-toggle { display: flex; align-items: center; gap: 8px; min-height: 40px; white-space: nowrap; }
+	.hashflag-form { display: grid; gap: 16px; }
+	.hashflag-form .field { min-width: 0; margin: 0; }
+	.hashflag-form .field input { width: 100%; }
+	.hashflag-schedule, .hashflag-assets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+	.hashflag-upload { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+	.hashflag-upload p { margin: 0; }
+	.hashflag-upload .row { min-width: 0; }
+	.hashflag-upload [data-file-name] { overflow-wrap: anywhere; }
+	.hashflag-toggle { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+	.invite-quota-toggle { display: flex; align-items: center; gap: 10px; margin: 0 0 16px; }
+	.invite-quota-toggle input { cursor: pointer; }
+	.invite-forms-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: stretch; margin-bottom: 16px; }
+	.invite-forms-grid > .box { min-width: 0; margin: 0 !important; }
+	.invite-fields { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: end; }
+	.invite-field { display: grid; gap: 6px; min-width: 0; }
+	.invite-field > label { color: var(--dim); font-size: 13px; }
+	.invite-field select { width: 180px; max-width: 100%; }
+	.invite-stepper { width: 104px; }
+	.invite-stepper > input { width: 80px; }
+	.invite-code-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+	.invite-code-card { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+	.invite-code-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0; }
+	.invite-code-value { min-width: 0; overflow-wrap: anywhere; }
+	.invite-code-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+	.invite-code-details > div { display: grid; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
+	.invite-code-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+	label.row { flex-wrap: nowrap; align-items: center; }
+	label.row input { margin-top: 0; flex: none; }
+	label.row:has(> input[type="checkbox"]), .card-toggle, .feature-option, .hashflag-toggle, .invite-quota-toggle { align-items: center; }
+	label.row:has(> input[type="checkbox"]) { margin-block: 0 4px !important; }
+	.schedule-controls > label.row { align-items: center; }
+	.schedule-controls > label.row input { margin-top: 0; }
 	.flags { display: flex; flex-wrap: wrap; gap: 6px; }
 	.flags button { width: 34px; height: 34px; padding: 0; border: 2px solid var(--line); border-radius: 6px; background: none; color: var(--dim); font-size: 11px; cursor: pointer; display: grid; place-items: center; }
 	.flags button img { width: 20px; height: 20px; border-radius: 3px; }
@@ -95,7 +275,7 @@
 	.ask p { margin: 0 0 14px; }
 	.secret { background: var(--bg); border: 1px dashed var(--line); padding: 10px; border-radius: 6px; margin-top: 8px; word-break: break-all; }
 	.empty { color: var(--dim); padding: 24px 0; }
-	.mediagrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+	.mediagrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 12px; min-width: 0; }
 	.mediagrid .box { padding: 10px; }
 	.thumb { position: relative; display: grid; place-items: center; aspect-ratio: 1; background: var(--bg); border-radius: 8px; overflow: hidden; }
 	.thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -116,6 +296,26 @@
 		nav .gitems { order: 1; flex-basis: 100%; }
 		nav .group.open .gitems { display: flex; flex-wrap: wrap; gap: 2px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 		main { padding: 16px; }
+		.instance-grid { grid-template-columns: 1fr; }
+		.user-admin-grid { grid-template-columns: 1fr; }
+		.user-related-grid { columns: 1; }
+		.user-admin-open { margin-left: 0; }
+		.audit-entry-body { grid-template-columns: 1fr; }
+		.audit-list { grid-template-columns: 1fr; }
+		.feature-grid { grid-template-columns: 1fr; }
+		.settings-grid { grid-template-columns: 1fr; }
+		.card-basic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.card-basic-grid .card-wide { grid-column: 1 / -1; }
+		.card-sports-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.card-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.invite-forms-grid { grid-template-columns: 1fr; }
+		.hashflag-schedule, .hashflag-assets { grid-template-columns: 1fr; }
+		.permission-group { padding: 12px; }
+		.permission-header, .permission-row { grid-template-columns: minmax(0, 1fr) 72px 72px; gap: 8px; }
+		.permission-header { font-size: 12px; }
+		.overview-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.overview-content { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.overview-charts, .overview-lists { grid-template-columns: 1fr; }
 		/* a table's last columns (the action buttons) fell off the side of a
 		   phone, behind a sideways scroll nobody noticed: each row stacks instead */
 		.table, .table tbody { display: block; }
@@ -124,6 +324,18 @@
 		.table td { padding: 0; border-bottom: 0; }
 		.table td:first-child { flex-basis: 100%; }
 		.table .row { flex-wrap: wrap !important; }
+	}
+	@media (min-width: 761px) and (max-width: 1100px) {
+		.instance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.audit-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.card-basic-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.card-basic-grid .card-wide { grid-column: 1 / -1; }
+		.card-sports-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.card-options-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.overview-stats, .overview-lists { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+		.overview-content { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+		.overview-charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 	}
 </style>
 </head>
@@ -236,6 +448,12 @@ const PAGES = {
 	hosting: { icon: "dns", title: "Hosted instances", needs: "hostedInstances" },
 	money: { icon: "payments", title: "Money", needs: "moderator" },
 	settings: { icon: "tune", title: "Settings" },
+	"settings-account": { icon: "manage_accounts", title: "Sign-up & features" },
+	"settings-limits": { icon: "speed", title: "Limits" },
+	"settings-community": { icon: "campaign", title: "Community" },
+	"settings-safety": { icon: "policy", title: "Safety" },
+	"settings-discovery": { icon: "explore", title: "Discovery" },
+	"settings-branding": { icon: "palette", title: "Branding" },
 	errors: { icon: "bug_report", title: "Errors", needs: "errors" },
 	permissions: { icon: "admin_panel_settings", title: "Staff permissions", needs: "admin" },
 	security: { icon: "shield_lock", title: "Security", needs: "admin" },
@@ -249,7 +467,7 @@ const GROUPS = [
 	["Moderation", ["reports", "appeals", "bulkStrike", "automod", "posts", "articles", "media"]],
 	["People", ["users", "orgs", "invites", "badges"]],
 	["Content", ["stickers", "hashflags", "topics", "cards"]],
-	["Instance", ["settings", "switches", "money", "email", "apps", "oauth", "federation"]],
+	["Instance", ["settings-account", "settings-limits", "settings-community", "settings-safety", "settings-discovery", "settings-branding", "switches", "money", "email", "apps", "oauth", "federation"]],
 	["Staff and system", ["permissions", "security", "audit", "errors", "backups", "client"]],
 ];
 function openGroup(g, on) {
@@ -257,17 +475,63 @@ function openGroup(g, on) {
 	g.querySelector(".ghead")?.setAttribute("aria-expanded", String(on));
 }
 
+const openNavGroups = new Set();
+let lastRoutedHash = null;
+
 function go(hash) { location.hash = hash; }
+function openAdminRoute(hash) {
+	const url = new URL(location.href);
+	url.hash = hash;
+	window.open(url.href, "_blank", "noopener");
+}
+window.addEventListener("keydown", (e) => {
+	if (e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.target.closest("input, textarea, select, [contenteditable=true]")) {
+		const search = document.querySelector('#main input[type="search"], #main input#q, #main input#author');
+		if (search) { e.preventDefault(); search.focus(); search.select?.(); }
+	} else if (e.key === "Escape" && e.target.matches('#main input[type="search"], #main input#q, #main input#author')) {
+		e.target.value = "";
+		e.target.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+});
+function tableSearch(main, inputId, rowSelector, countId, emptyId, label) {
+	const input = main.querySelector("#" + inputId);
+	if (!input) return;
+	const rows = [...main.querySelectorAll(rowSelector)];
+	const count = main.querySelector("#" + countId);
+	const empty = main.querySelector("#" + emptyId);
+	const update = () => {
+		const query = input.value.trim().toLocaleLowerCase();
+		let visible = 0;
+		rows.forEach((row) => {
+			const match = !query || (row.dataset.search || row.textContent).toLocaleLowerCase().includes(query);
+			row.hidden = !match;
+			if (match) visible++;
+		});
+		if (count) count.textContent = query ? visible + " of " + rows.length + " " + label : rows.length + " " + label;
+		if (empty) {
+			empty.hidden = visible > 0;
+			empty.textContent = "No " + label + " match “" + input.value.trim() + "”.";
+		}
+	};
+	input.addEventListener("input", update);
+	update();
+}
 window.addEventListener("hashchange", route);
 
 async function route() {
-	const [page, arg] = location.hash.slice(1).split("/");
+	const routeHash = location.hash;
+	const [page, arg] = routeHash.slice(1).split("/");
 	const name = PAGES[page] ? page : page === "user" ? "users" : "overview";
 	document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b.dataset.page === name));
 	const cur = $('nav [data-page="' + name + '"]');
-	document.querySelectorAll("nav .group").forEach((g) => openGroup(g, g.contains(cur)));
+	const activeGroup = cur?.closest("nav .group");
+	if (activeGroup && routeHash !== lastRoutedHash) openNavGroups.add(activeGroup);
+	document.querySelectorAll("nav .group").forEach((g) => openGroup(g, openNavGroups.has(g)));
+	lastRoutedHash = routeHash;
 	const main = $("#main");
-	main.innerHTML = '<div class="empty">Loading…</div>';
+	const scrollY = window.scrollY;
+	const focusedId = main.contains(document.activeElement) ? document.activeElement.id : "";
+	if (!main.hasChildNodes()) main.innerHTML = '<div class="empty">Loading…</div>';
 	try {
 		if (page === "user" && arg) await renderUser(main, arg);
 		else if (name === "media") await RENDER.media(main, arg);
@@ -275,13 +539,20 @@ async function route() {
 	} catch (e) {
 		main.innerHTML = '<div class="empty">' + esc(e.message) + "</div>";
 	}
+	// Actions refresh the current route to pick up saved data. Keep the old view
+	// visible during that fetch, then restore the user's place and focus.
+	if (location.hash === routeHash) {
+		window.scrollTo(0, scrollY);
+		if (focusedId) main.querySelector('[id="' + CSS.escape(focusedId) + '"]')?.focus({ preventScroll: true });
+	}
 }
 
+let auditRequest = 0;
 const RENDER = {
 	async overview(main) {
 		const [s, h] = await Promise.all([api("stats"), api("health")]);
 		const mb = (bytes) => (Number(bytes) / 1048576).toFixed(1) + " MB";
-		const cards = (list) => '<div class="cards">' + list.map(([k, v]) => '<div class="card"><span>' + esc(k) + "</span><b>" + esc(v) + "</b></div>").join("") + "</div>";
+	const cards = (list, group) => '<div class="cards overview-stats ' + group + '">' + list.map(([k, v]) => '<div class="card"><span>' + esc(k) + "</span><b>" + esc(v) + "</b></div>").join("") + "</div>";
 		const chart = (key, what) => {
 			const max = Math.max(1, ...s.days.map((d) => d[key]));
 			return '<div class="box"><h2>' + esc(what[0].toUpperCase() + what.slice(1)) + ' per day, last two weeks</h2><div class="chart">' +
@@ -290,17 +561,17 @@ const RENDER = {
 		};
 		const list = (title, rows, empty) => '<div class="box"><h2>' + title + "</h2>" + (rows.length ? '<div class="list">' + rows.join("") + "</div>" : '<p class="dim small">' + empty + "</p>") + "</div>";
 		main.innerHTML = "<h1>Overview</h1>" +
-			cards([["Open reports", s.open_reports], ["Open errors", s.open_errors], ["Accounts", s.users], ["Sanctioned", s.sanctioned], ["Open invites", s.open_invites], ["Videos converting", s.videos_processing]]) +
-			"<h2>People</h2>" + cards([["Active today", s.active_day], ["Active this week", s.active_week], ["Active this month", s.active_month], ["Follows", s.follows]]) +
-			"<h2>Content</h2>" + cards([["Posts", s.posts], ["Posts today", s.posts_today], ["Likes", s.likes], ["Reposts", s.reposts], ["Bookmarks", s.bookmarks], ["Media files", s.media], ["Media stored", mb(s.media_bytes)]]) +
-			'<div class="grid2">' + chart("posts", "posts") + chart("signups", "sign-ups") + chart("likes", "likes") + chart("follows", "follows") + chart("reports", "reports") + "</div>" +
-			'<div class="grid2" style="margin-top:16px">' +
+			cards([["Open reports", s.open_reports], ["Open errors", s.open_errors], ["Accounts", s.users], ["Sanctioned", s.sanctioned], ["Open invites", s.open_invites], ["Videos converting", s.videos_processing]], "overview-primary") +
+			"<h2>People</h2>" + cards([["Active today", s.active_day], ["Active this week", s.active_week], ["Active this month", s.active_month], ["Follows", s.follows]], "overview-people") +
+			"<h2>Content</h2>" + cards([["Posts", s.posts], ["Posts today", s.posts_today], ["Likes", s.likes], ["Reposts", s.reposts], ["Bookmarks", s.bookmarks], ["Media files", s.media], ["Media stored", mb(s.media_bytes)]], "overview-content") +
+			'<div class="grid2 overview-charts">' + chart("posts", "posts") + chart("signups", "sign-ups") + chart("likes", "likes") + chart("follows", "follows") + chart("reports", "reports") + "</div>" +
+			'<div class="grid2 overview-lists">' +
 			list("Most new followers this week", s.risers.map((u) => '<p class="row" style="justify-content:space-between"><a href="#user/' + esc(u.id) + '">' + person(u) + '</a><b>+' + u.gained + "</b></p>"), "No new follows this week.") +
 			list("Most liked this week", s.liked.map((p) => '<p><a target="_blank" href="/' + esc(p.screen_name) + "/status/" + esc(p.id) + '">@' + esc(p.screen_name) + "</a> " + esc(p.text.slice(0, 120)) + ' <span class="dim small">· ' + p.likes + " likes</span></p>"), "No likes this week.") +
 			list("Storage by kind", s.storage.map((m) => "<p>" + esc(m.kind) + ' <span class="dim small">· ' + m.files + " files · " + mb(m.bytes) + "</span></p>"), "Nothing uploaded.") +
 			list("Accounts by sign-up app", s.sources.map((r) => "<p>" + esc(r.source) + ' <span class="dim small">· ' + r.users + "</span></p>"), "No accounts.") +
 			"</div>" +
-			"<h2>Server</h2>" + '<div class="cards">' +
+			"<h2>Server</h2>" + '<div class="cards overview-stats overview-server">' +
 			[["Up for", duration(h.uptime)], ["Memory", (h.memory / 1048576).toFixed(0) + " MB"], ["Database", (Number(h.database.bytes) / 1048576).toFixed(1) + " MB"],
 				["Database answers in", h.database.latency_ms + " ms"], ["Bun", h.runtime], ["Client build", h.client_build ? h.client_build.slice(0, 7) : "none"]]
 				.map(([k, v]) => '<div class="card"><span>' + esc(k) + "</span><b>" + esc(v) + "</b></div>").join("") + "</div>";
@@ -332,13 +603,20 @@ const RENDER = {
 		const size = (n) => n < 1048576 ? Math.ceil(n / 1024) + " KB" : (n / 1048576).toFixed(1) + " MB";
 		main.innerHTML = "<h1>Backups</h1>" +
 			'<p class="dim">Dumps of the database (pg_dump\'s custom format) in <span class="code">' + esc(dir) + '</span> on the server. Uploaded media and branding are files in media/ and data/: copy those directories too. To restore, stop the server and run <span class="code">pg_restore --clean --if-exists -d "$DATABASE_URL" &lt;file&gt;</span>.</p>' +
-			'<div class="box" style="margin-bottom:16px"><h2>Schedule</h2><div class="row"><label class="row"><input type="checkbox" id="bdaily"' + (schedule.daily ? " checked" : "") + "> A backup every day</label>" +
-			'<label class="row small">keep the newest <input id="bkeep" type="number" min="1" max="90" style="width:70px" value="' + schedule.keep + '"></label><button class="btn" id="bsave">Save</button></div></div>' +
+			'<div class="box" style="margin-bottom:16px"><h2>Schedule</h2><div class="row schedule-controls"><label class="row"><input type="checkbox" id="bdaily"' + (schedule.daily ? " checked" : "") + '> Back up every day, keep the newest</label>' +
+			'<span class="number-stepper"><input id="bkeep" type="number" min="1" max="90" value="' + schedule.keep + '" aria-label="Number of backups to keep"><span class="step-buttons"><button type="button" id="bkeep-up" aria-label="Keep one more backup"><span class="arrow up"></span></button><button type="button" id="bkeep-down" aria-label="Keep one fewer backup"><span class="arrow down"></span></button></span></span><button class="btn" id="bsave">Save</button></div></div>' +
 			'<div class="row" style="margin-bottom:16px"><button class="btn primary" id="bnow">Back up now</button></div>' +
 			'<div class="scroll">' + (backups.length ? '<table class="table"><tr><th>File</th><th>Size</th><th>Made</th><th></th></tr>' +
 				backups.map((b) => '<tr><td class="code">' + esc(b.name) + "</td><td>" + size(b.bytes) + '</td><td class="small dim">' + esc(when(b.created_at)) + '</td><td class="row"><a class="btn" href="/admin/backups/' + esc(b.name) + '" download>Download</a><button class="btn danger" data-del="' + esc(b.name) + '">Delete</button></td></tr>').join("") + "</table>"
 				: '<div class="empty">No backups yet.</div>') + "</div>";
 		$("#bsave").onclick = () => act(() => api("saveBackupSchedule", { daily: $("#bdaily").checked, keep: Number($("#bkeep").value) }), "Saved").then(route);
+		const adjustKeep = (amount) => {
+			const input = $("#bkeep"), min = Number(input.min), max = Number(input.max);
+			input.value = String(Math.max(min, Math.min(max, (Number(input.value) || min) + amount)));
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+		};
+		$("#bkeep-up").onclick = () => adjustKeep(1);
+		$("#bkeep-down").onclick = () => adjustKeep(-1);
 		$("#bnow").onclick = () => { $("#bnow").disabled = true; $("#bnow").textContent = "Backing up…"; act(() => api("createBackup"), "Backup made").then(route); };
 		main.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => {
 			if (!(await ask("Delete " + b.dataset.del + "?"))) return;
@@ -350,13 +628,12 @@ const RENDER = {
 		const { permissions, roles } = await api("staffPermissions");
 		const ROLES = ["moderator", "support"];
 		const groups = [...new Set(permissions.map((p) => p.group))];
-		const box = (role, p) => '<td style="text-align:center"><input type="checkbox" data-role="' + role + '" data-perm="' + esc(p.key) + '"' + (roles[role][p.key] ? " checked" : "") + "></td>";
+		const defaultRole = (p) => p.default_role === "admin" ? "Admins only" : p.default_role === "moderator" ? "Moderators" : "Moderators and support";
+		const toggle = (role, p) => '<label class="permission-toggle"><input type="checkbox" data-role="' + role + '" data-perm="' + esc(p.key) + '" aria-label="Allow ' + role + " to " + esc(p.label.toLocaleLowerCase()) + '"' + (roles[role][p.key] ? " checked" : "") + "></label>";
 		main.innerHTML = "<h1>Staff permissions</h1>" +
 			'<p class="dim">What moderators and support can do in this panel. Admins can always do everything, and every staff role can look through accounts, posts, reports and the audit log; the Privacy permissions decide who also sees IP and email addresses. Roles, settings, security, backups and the client build stay with admins. Nobody acts on staff at or above their own role, whatever they are allowed. Changes apply to the next thing a staff member does; they see new buttons after reloading the panel.</p>' +
-			'<div class="scroll"><table class="table"><tr><th>Permission</th><th>Out of the box</th>' + ROLES.map((r) => '<th style="text-align:center">' + r + "</th>").join("") + "</tr>" +
-			groups.map((g) => '<tr><td colspan="' + (2 + ROLES.length) + '"><b>' + esc(g) + "</b></td></tr>" +
-				permissions.filter((p) => p.group === g).map((p) => "<tr><td>" + esc(p.label) + '</td><td class="small dim">' + esc(p.default_role === "admin" ? "admins only" : p.default_role === "moderator" ? "moderators" : "moderators and support") + "</td>" + ROLES.map((r) => box(r, p)).join("") + "</tr>").join("")).join("") +
-			"</table></div>" +
+			groups.map((g) => '<section class="permission-group"><h2>' + esc(g) + '</h2><div class="permission-header"><span>Default access</span><span>Moderator</span><span>Support</span></div>' +
+				permissions.filter((p) => p.group === g).map((p) => '<div class="permission-row"><div class="permission-copy"><span>' + esc(p.label) + '</span><span class="permission-default">Default: ' + esc(defaultRole(p)) + '</span></div>' + ROLES.map((r) => toggle(r, p)).join("") + "</div>").join("") + "</section>").join("") +
 			'<div class="row" style="margin-top:16px"><button class="btn primary" id="psave">Save</button><button class="btn" id="preset">Back to the defaults</button></div>';
 		const chosen = (role) => Object.fromEntries([...main.querySelectorAll('[data-role="' + role + '"]')].map((c) => [c.dataset.perm, c.checked]));
 		$("#psave").onclick = () => act(async () => { for (const role of ROLES) await api("saveStaffPermissions", { role, permissions: chosen(role) }); }, "Permissions saved").then(route);
@@ -370,42 +647,63 @@ const RENDER = {
 		const s = await api("security");
 		const mine = (x) => x.user_id === me.id;
 		const canEnd = (x) => !x.current && (mine(x) || RANK[x.role] < RANK[me.role]);
-		main.innerHTML = "<h1>Security</h1>" + '<div class="grid2">' +
-			'<div class="box"><h2>Two-factor for staff</h2><label class="row"><input type="checkbox" id="s2fa"' + (s.security.staff_2fa ? " checked" : "") + "> Staff need two-factor authentication to open this panel</label>" +
-			'<p class="dim small">Set up at <a href="/account/2fa" target="_blank">/account/2fa</a>. ' + (s.without_2fa.length ? "Without it now, and shut out once this is on: " + s.without_2fa.map((u) => '<a href="#user/' + esc(u.id) + '">@' + esc(u.screen_name) + "</a> (" + esc(u.role) + ")").join(", ") + "." : "Every staff account has it.") + "</p></div>" +
-			'<div class="box"><h2>Addresses</h2><p class="dim small">Only these addresses reach the panel, one per line: an IP or a range like 10.0.0.0/8. Empty lets any address in. Yours is <span class="code">' + esc(s.your_ip ?? "unknown") + "</span>; the list must include it. Locked out anyway? Start the server with ADMIN_ANY_IP=1.</p>" +
-			'<div class="field"><textarea id="sips" rows="4" placeholder="203.0.113.7&#10;10.0.0.0/8">' + esc(s.security.admin_ips.join("\n")) + "</textarea></div></div></div>" +
-			'<div class="row" style="margin:12px 0 24px"><button class="btn primary" id="ssave">Save</button></div>' +
-			'<div class="box"><h2>Staff sessions</h2><p class="dim small">Every browser a staff account is signed in on. You can end your own other sessions and those of staff below your role.</p><div class="scroll">' +
-			(s.sessions.length ? '<table class="table"><tr><th>Account</th><th>Browser</th><th>Address</th><th>Signed in</th><th>Last active</th><th></th></tr>' +
-				s.sessions.map((x) => '<tr><td><a href="#user/' + esc(x.user_id) + '">@' + esc(x.screen_name) + '</a> <span class="pill staff">' + esc(x.role) + "</span></td><td>" + esc(browser(x.user_agent)) + (x.current ? ' <span class="pill staff">you, now</span>' : "") +
-					'</td><td class="small">' + esc(x.ip ?? "") + '</td><td class="small dim">' + esc(when(x.created_at)) + '</td><td class="small dim">' + esc(when(x.last_seen_at)) + "</td><td>" +
-					(canEnd(x) ? '<button class="btn" data-session="' + esc(x.id) + '">Sign out</button>' : "") + "</td></tr>").join("") + "</table>"
-				: '<div class="empty">No staff sessions.</div>') + "</div></div>";
+		main.innerHTML = "<h1>Security</h1>" + '<div class="box security-settings"><div class="grid2 security-grid">' +
+			'<section><h2>Two-factor for staff</h2><label class="row"><input type="checkbox" id="s2fa"' + (s.security.staff_2fa ? " checked" : "") + "> Staff need two-factor authentication to open this panel</label>" +
+			'<p class="dim small">Set up at <a href="/account/2fa" target="_blank">/account/2fa</a>. ' + (s.without_2fa.length ? "Without it now, and shut out once this is on: " + s.without_2fa.map((u) => '<a href="#user/' + esc(u.id) + '">@' + esc(u.screen_name) + "</a> (" + esc(u.role) + ")").join(", ") + "." : "Every staff account has it.") + "</p></section>" +
+			'<section><h2>Addresses</h2><p class="dim small">Only these addresses reach the panel, one per line: an IP or a range like 10.0.0.0/8. Empty lets any address in. Yours is <span class="code">' + esc(s.your_ip ?? "unknown") + "</span>; the list must include it. Locked out anyway? Start the server with ADMIN_ANY_IP=1.</p>" +
+			'<div class="field"><textarea id="sips" rows="4" aria-label="Allowed admin IP addresses" placeholder="203.0.113.7&#10;10.0.0.0/8">' + esc(s.security.admin_ips.join("\n")) + "</textarea></div></section></div>" +
+			'<div class="security-actions"><button class="btn primary" id="ssave">Save security settings</button></div></div>' +
+			'<div class="box"><h2>Staff sessions</h2><p class="dim small">Every browser a staff account is signed in on. You can end your own other sessions and those of staff below your role.</p>' +
+			(s.sessions.length ? '<div class="security-session-grid">' + s.sessions.map((x) =>
+				'<article class="security-session-card"><div class="security-session-heading"><div><a href="#user/' + esc(x.user_id) + '">@' + esc(x.screen_name) + '</a> <span class="pill staff">' + esc(x.role) + '</span>' + (x.current ? ' <span class="pill staff">you, now</span>' : "") + '</div><span class="security-session-browser">' + esc(browser(x.user_agent)) + '</span></div>' +
+				'<div class="security-session-meta"><div><span>Address</span><b class="code">' + esc(x.ip ?? "—") + '</b></div><div><span>Signed in</span><b>' + esc(when(x.created_at)) + '</b></div><div><span>Last active</span><b>' + esc(when(x.last_seen_at)) + '</b></div></div>' +
+				(canEnd(x) ? '<div class="security-session-actions"><button class="btn" data-session="' + esc(x.id) + '">Sign out</button></div>' : "") + "</article>").join("") + "</div>"
+				: '<div class="empty">No staff sessions.</div>') + "</div>";
 		$("#ssave").onclick = () => act(() => api("saveSecurity", { staff_2fa: $("#s2fa").checked, admin_ips: $("#sips").value.split("\n") }), "Saved").then(route);
 		main.querySelectorAll("[data-session]").forEach((b) => b.onclick = () => act(() => api("revokeSession", { sessionId: b.dataset.session }), "Signed out").then(route));
 	},
 
 	async errors(main) {
-		const resolved = sessionStorage.getItem("errorTab") === "resolved";
-		const source = sessionStorage.getItem("errorSource") || "";
-		const { errors } = await api("errors", { resolved, source: source || undefined });
+		let resolved = sessionStorage.getItem("errorTab") === "resolved";
+		let source = sessionStorage.getItem("errorSource") || "";
 		const what = { server: "Server", client: "Browser", job: "Background job" };
 		main.innerHTML = '<h1>Errors</h1><p class="dim">Requests that failed on the server, background jobs, and uncaught errors in signed-in people\'s browsers. The same error is counted on one row; a resolved one that happens again comes back.</p>' +
 			'<div class="bar">' + [["", "Open"], ["resolved", "Resolved"]].map(([t, l]) => '<button class="btn' + ((t === "resolved") === resolved ? " primary" : "") + '" data-tab="' + t + '">' + l + "</button>").join("") +
-			'<select id="esrc"><option value="">Everywhere</option>' + Object.entries(what).map(([k, l]) => '<option value="' + k + '"' + (k === source ? " selected" : "") + ">" + l + "</option>").join("") + "</select>" +
-			(!resolved && errors.length && can("resolveErrors") ? '<button class="btn" id="eall">Resolve all</button>' : "") + "</div>" +
-			(errors.length ? errors.map((e) => '<div class="box" style="margin-bottom:12px" data-error="' + esc(e.fingerprint) + '"><div class="row" style="justify-content:space-between"><div><b>' + esc(e.message) + "</b>" +
-				'<div class="dim small">' + esc(what[e.source] || e.source) + (e.path ? " · " + esc(e.path) : "") + " · " + e.count + (e.count === 1 ? " time" : " times") + " · last " + esc(when(e.last_at)) + (e.count > 1 ? ", first " + esc(when(e.first_at)) : "") +
-				(e.screen_name ? ' · last for <a href="#user/' + esc(e.user_id) + '">@' + esc(e.screen_name) + "</a>" : "") + "</div></div>" +
-				(!e.resolved && can("resolveErrors") ? '<button class="btn" data-resolve>Resolve</button>' : "") + "</div>" +
-				(e.stack ? '<details style="margin-top:8px"><summary class="small dim">Stack</summary><pre class="small" style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(e.stack) + "</pre></details>" : "") + "</div>").join("")
-				: '<div class="empty">' + (resolved ? "Nothing resolved yet." : "No open errors.") + "</div>");
-		main.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { sessionStorage.setItem("errorTab", b.dataset.tab); route(); });
-		$("#esrc").onchange = () => { sessionStorage.setItem("errorSource", $("#esrc").value); route(); };
-		if ($("#eall")) $("#eall").onclick = () => act(() => api("resolveErrors", { all: true }), "Resolved").then(route);
-		main.querySelectorAll("[data-error] [data-resolve]").forEach((b) => b.onclick = () =>
-			act(() => api("resolveErrors", { fingerprint: b.closest("[data-error]").dataset.error }), "Resolved").then(route));
+			'<select id="esrc" aria-label="Filter errors by source"><option value="">Everywhere</option>' + Object.entries(what).map(([k, l]) => '<option value="' + k + '"' + (k === source ? " selected" : "") + ">" + l + "</option>").join("") + "</select>" +
+			'<button class="btn" id="eall"' + (resolved || !can("resolveErrors") ? " hidden" : "") + '>Resolve all</button><span class="dim small" id="eloading" role="status" hidden>Updating…</span></div><div id="error-results" aria-live="polite"></div>';
+		let pageRequest = 0;
+		const load = async () => {
+			const request = ++pageRequest;
+			$("#eloading").hidden = false;
+			try {
+				const { errors } = await api("errors", { resolved, source: source || undefined });
+				if (request !== pageRequest || location.hash.slice(1).split("/")[0] !== "errors") return;
+				$("#eloading").hidden = true;
+				$("#eall").hidden = resolved || !errors.length || !can("resolveErrors");
+				$("#error-results").innerHTML = errors.length ? errors.map((e) => '<div class="box" style="margin-bottom:12px" data-error="' + esc(e.fingerprint) + '"><div class="row" style="justify-content:space-between"><div><b>' + esc(e.message) + "</b>" +
+					'<div class="dim small">' + esc(what[e.source] || e.source) + (e.path ? " · " + esc(e.path) : "") + " · " + e.count + (e.count === 1 ? " time" : " times") + " · last " + esc(when(e.last_at)) + (e.count > 1 ? ", first " + esc(when(e.first_at)) : "") +
+					(e.screen_name ? ' · last for <a href="#user/' + esc(e.user_id) + '">@' + esc(e.screen_name) + "</a>" : "") + "</div></div>" +
+					(!e.resolved && can("resolveErrors") ? '<button class="btn" data-resolve>Resolve</button>' : "") + "</div>" +
+					(e.stack ? '<details style="margin-top:8px"><summary class="small dim">Stack</summary><pre class="small" style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(e.stack) + "</pre></details>" : "") + "</div>").join("")
+					: '<div class="empty">' + (resolved ? "Nothing resolved yet." : "No open errors.") + "</div>";
+				main.querySelectorAll("[data-error] [data-resolve]").forEach((b) => b.onclick = () =>
+					act(() => api("resolveErrors", { fingerprint: b.closest("[data-error]").dataset.error }), "Resolved").then(load));
+			} catch (e) {
+				if (request === pageRequest) {
+					$("#eloading").hidden = true;
+					$("#error-results").innerHTML = '<div class="empty">' + esc(e.message) + "</div>";
+				}
+			}
+		};
+		main.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => {
+			resolved = b.dataset.tab === "resolved";
+			sessionStorage.setItem("errorTab", resolved ? "resolved" : "open");
+			main.querySelectorAll("[data-tab]").forEach((tab) => tab.classList.toggle("primary", tab === b));
+			load();
+		});
+		$("#esrc").onchange = () => { source = $("#esrc").value; sessionStorage.setItem("errorSource", source); load(); };
+		$("#eall").onclick = () => act(() => api("resolveErrors", { all: true }), "Resolved").then(load);
+		await load();
 	},
 
 	async appeals(main) {
@@ -540,20 +838,26 @@ const RENDER = {
 			(can("createBadge") ? '<div class="box" style="margin-bottom:16px"><h2>New badge</h2><div class="row"><input id="bn" placeholder="Name, shown on hover" maxlength="60" style="flex:1;min-width:180px">' +
 				'<label class="btn">Choose image<input type="file" id="bf" accept="image/png,image/jpeg,image/webp" hidden></label><span class="dim small" id="bfname">PNG, JPEG or WebP, square, up to 256 KB</span>' +
 				'<button class="btn primary" id="bc">Create</button></div></div>' : "") +
+			(badges.length ? '<div class="bar"><input id="badge-search" type="search" placeholder="Search badges by name" aria-label="Search badges"><span class="dim small" id="badge-count" role="status"></span></div>' : "") +
 			'<div class="scroll">' + (badges.length
-				? '<table class="table"><tr><th></th><th>Name</th><th>Accounts</th><th>Made</th><th></th></tr>' +
-					badges.map((b) => '<tr><td style="width:44px"><img alt="" src="/public/badge-' + esc(b.id) + '.png" width="24" height="24" style="border-radius:4px;vertical-align:middle"></td><td>' + esc(b.name) + "</td><td>" + b.users +
+				? '<table class="table badge-table"><tr><th></th><th>Name</th><th>Accounts</th><th>Made</th><th></th></tr>' +
+					badges.map((b) => '<tr data-search="' + esc((b.name + " " + b.id).toLocaleLowerCase()) + '"><td style="width:44px"><img alt="" src="/public/badge-' + esc(b.id) + '.png" width="24" height="24" style="border-radius:4px;vertical-align:middle"></td><td>' + esc(b.name) + "</td><td>" + b.users +
 						'</td><td class="small dim">' + esc(when(b.created_at)) + "</td><td>" + (can("deleteBadge") ? '<button class="btn danger" data-del="' + esc(b.id) + '">Delete</button>' : "") + "</td></tr>").join("") + "</table>"
 				: '<div class="empty">No custom badges yet.</div>') + "</div>" +
+			(badges.length ? '<div class="empty" id="badge-empty" hidden></div>' : "") +
 			'<h1 style="margin-top:32px">Profile labels</h1><p class="dim">Text under an account\'s name, where X shows "Parody account", with a badge as its icon (the parody mask without one). Give one to an account on its page; it replaces a parody, commentary or fan label, and the account can\'t change it.</p>' +
 			(can("createLabel") ? '<div class="box" style="margin-bottom:16px"><h2>New label</h2><div class="row"><input id="ln" placeholder="Text, e.g. State-affiliated media" maxlength="40" style="flex:1;min-width:180px">' +
 				'<select id="lb"><option value="">parody mask</option>' + badges.map((b) => '<option value="' + esc(b.id) + '">' + esc(b.name) + "</option>").join("") + "</select>" +
 				'<input id="lu" placeholder="Link (optional)" maxlength="500" style="flex:1;min-width:160px"><button class="btn primary" id="lc">Create</button></div></div>' : "") +
+			(labels.length ? '<div class="bar"><input id="label-search" type="search" placeholder="Search labels by text or link" aria-label="Search profile labels"><span class="dim small" id="label-count" role="status"></span></div>' : "") +
 			'<div class="scroll">' + (labels.length
-				? '<table class="table"><tr><th></th><th>Text</th><th>Link</th><th>Accounts</th><th></th></tr>' +
-					labels.map((l) => '<tr><td style="width:44px">' + (l.badge_id ? '<img alt="" src="/public/badge-' + esc(l.badge_id) + '.png" width="20" height="20" style="border-radius:3px;vertical-align:middle">' : '<span class="icon">theater_comedy</span>') + "</td><td>" + esc(l.text) +
+				? '<table class="table label-table"><tr><th></th><th>Text</th><th>Link</th><th>Accounts</th><th></th></tr>' +
+					labels.map((l) => '<tr data-search="' + esc([l.text, l.url || "", l.badge_id || "", badges.find((b) => String(b.id) === String(l.badge_id))?.name || ""].join(" ").toLocaleLowerCase()) + '"><td style="width:44px">' + (l.badge_id ? '<img alt="" src="/public/badge-' + esc(l.badge_id) + '.png" width="20" height="20" style="border-radius:3px;vertical-align:middle">' : '<span class="icon">theater_comedy</span>') + "</td><td>" + esc(l.text) +
 						'</td><td class="small dim">' + esc(l.url || "") + "</td><td>" + l.users + "</td><td>" + (can("deleteLabel") ? '<button class="btn danger" data-dellabel="' + esc(l.id) + '">Delete</button>' : "") + "</td></tr>").join("") + "</table>"
-				: '<div class="empty">No profile labels yet.</div>') + "</div>";
+				: '<div class="empty">No profile labels yet.</div>') + "</div>" +
+			(labels.length ? '<div class="empty" id="label-empty" hidden></div>' : "");
+		if (badges.length) tableSearch(main, "badge-search", ".badge-table tr[data-search]", "badge-count", "badge-empty", "badges");
+		if (labels.length) tableSearch(main, "label-search", ".label-table tr[data-search]", "label-count", "label-empty", "labels");
 		if ($("#lc")) $("#lc").onclick = () => act(() => api("createLabel", { text: $("#ln").value, badgeId: $("#lb").value, url: $("#lu").value }), "Label created").then(route);
 		main.querySelectorAll("[data-dellabel]").forEach((b) => b.onclick = async () => {
 			if (!(await ask("Delete this label? Accounts wearing it lose it."))) return;
@@ -631,13 +935,13 @@ const RENDER = {
 		const state = (h) => new Date(h.ends_at) <= now ? "ended" : new Date(h.starts_at) > now ? "upcoming" : "running";
 		main.innerHTML = "<h1>Branded hashtags</h1>" +
 			'<p class="dim">X\'s branded likes and hashmoji. While one runs, liking a post that has its hashtag plays the like animation instead of the heart, and the hashtag shows its emoji. The animation is a Lottie JSON file (After Effects with Bodymovin, or LottieFiles), square, like X\'s own heart. With hashfetti on, the emoji rains over the hashtag\'s search results. People see a change after they reload.</p>' +
-			(admin ? '<div class="box" style="margin-bottom:16px"><h2>New branded hashtag</h2>' +
+			(admin ? '<div class="box" style="margin-bottom:16px" id="hashflag-new"><h2>New branded hashtag</h2><div class="hashflag-form">' +
 				'<div class="field"><label>Hashtag</label><input id="hh" placeholder="#SuperMarioMovie" maxlength="101"></div>' +
-				'<div class="row"><div class="field" style="flex:1"><label>Starts</label><input id="hs" type="datetime-local" value="' + local(now) + '"></div><div class="field" style="flex:1"><label>Ends</label><input id="he" type="datetime-local" value="' + local(now + 7 * 864e5) + '"></div></div>' +
-				'<div class="row"><label class="btn">Like animation (.json)<input type="file" id="ha" accept="application/json,.json" hidden></label><span class="dim small" id="han">Lottie JSON, up to 1 MB</span></div>' +
-				'<div class="row" style="margin-top:8px"><label class="btn">Emoji<input type="file" id="hm" accept="image/png,image/gif,image/webp" hidden></label><span class="dim small" id="hmn">PNG, GIF or WebP, up to 512×512 and 256 KB</span></div>' +
-				'<label class="row" style="margin:12px 0"><input type="checkbox" id="hf"> Hashfetti (needs an emoji)</label>' +
-				'<button class="btn primary" id="hc">Create</button></div>' : "") +
+				'<div class="hashflag-schedule"><div class="field"><label>Starts</label><input id="hs" type="datetime-local" value="' + local(now) + '"></div><div class="field"><label>Ends</label><input id="he" type="datetime-local" value="' + local(now + 7 * 864e5) + '"></div></div>' +
+				'<div class="hashflag-assets"><div class="hashflag-upload"><b>Like animation</b><p class="dim small">Lottie JSON, up to 1 MB.</p><div class="row"><label class="btn">Choose animation<input type="file" id="ha" accept="application/json,.json" hidden></label><span class="dim small" id="han" data-file-name>No file selected</span></div></div>' +
+				'<div class="hashflag-upload"><b>Emoji</b><p class="dim small">PNG, GIF or WebP, up to 512×512 and 256 KB.</p><div class="row"><label class="btn">Choose emoji<input type="file" id="hm" accept="image/png,image/gif,image/webp" hidden></label><span class="dim small" id="hmn" data-file-name>No file selected</span></div></div></div>' +
+				'<label class="hashflag-toggle"><input type="checkbox" id="hf"><span>Hashfetti <span class="dim small">(needs an emoji)</span></span></label>' +
+				'<div><button class="btn primary" id="hc">Create branded hashtag</button></div></div></div>' : "") +
 			'<div class="scroll">' + (hashflags.length
 				? '<table class="table"><tr><th>Hashtag</th><th>Like</th><th>Emoji</th><th>When</th><th>State</th><th></th></tr>' +
 					hashflags.map((h) => '<tr><td>#' + esc(h.hashtag) + (h.hashfetti ? ' <span class="dim small">hashfetti</span>' : "") + "</td><td>" +
@@ -647,8 +951,8 @@ const RENDER = {
 						(admin ? (state(h) !== "ended" ? '<button class="btn" data-end="' + esc(h.id) + '">End now</button> ' : "") + '<button class="btn danger" data-del="' + esc(h.id) + '">Delete</button>' : "") + "</td></tr>").join("") + "</table>"
 				: '<div class="empty">No branded hashtags yet.</div>') + "</div>";
 		const read = (file) => new Promise((ok, fail) => { const r = new FileReader(); r.onload = () => ok(r.result.split(",")[1]); r.onerror = () => fail(new Error("Couldn't read " + file.name + ".")); r.readAsDataURL(file); });
-		if ($("#ha")) $("#ha").onchange = () => $("#han").textContent = $("#ha").files[0]?.name || "";
-		if ($("#hm")) $("#hm").onchange = () => $("#hmn").textContent = $("#hm").files[0]?.name || "";
+		if ($("#ha")) $("#ha").onchange = () => $("#han").textContent = $("#ha").files[0]?.name || "No file selected";
+		if ($("#hm")) $("#hm").onchange = () => $("#hmn").textContent = $("#hm").files[0]?.name || "No file selected";
 		if ($("#hc")) $("#hc").onclick = () => act(async () => {
 			const anim = $("#ha").files[0], emoji = $("#hm").files[0];
 			await api("createHashflag", {
@@ -715,43 +1019,49 @@ const RENDER = {
 		const show = (v) => v === undefined ? "unset" : typeof v === "string" ? v : JSON.stringify(v);
 		main.innerHTML = "<h1>Feature switches</h1>" +
 			'<p class="dim">The X client turns its features on and off with these switches. A value set here wins over the pinned build\'s and Xitter\'s own, for everyone, from their next page load. Many switches need server support Xitter doesn\'t have: turn on something new, then check the app. The instance\'s own features are under Settings.</p>' +
-			'<div class="row" style="margin-bottom:12px"><input id="sq" placeholder="Search ' + switches.length + ' switches, e.g. grok, poll, edit_tweet" style="flex:1;min-width:200px">' +
-			'<select id="sf"><option value="">All</option><option value="admin">Set here</option><option value="Xitter">Set by Xitter</option><option value="on">On</option></select></div>' +
+			'<div class="bar"><input id="sq" type="search" aria-label="Search feature switches" placeholder="Search ' + switches.length + ' switches, e.g. grok, poll, edit_tweet" style="flex:1;min-width:220px">' +
+			'<select id="sf" aria-label="Filter feature switches"><option value="">All switches</option><option value="admin">Set here</option><option value="Xitter">Set by Xitter</option><option value="on">On</option></select></div>' +
 			'<div id="slist"></div>';
 		const list = $("#slist");
+		let page = 0, pageSize = 24;
 		const draw = () => {
 			const q = $("#sq").value.trim().toLowerCase(), f = $("#sf").value;
-			const hits = switches.filter((s) => (!q || s.name.includes(q)) && (!f || (f === "on" ? effective(s) === true : from(s) === f)));
-			list.innerHTML = (hits.length > 200 ? '<p class="dim small">Showing 200 of ' + hits.length + '; narrow the search.</p>' : "") +
-				'<div class="scroll"><table class="table"><tr><th>Switch</th><th>Value</th><th>From</th><th></th></tr>' +
-				hits.slice(0, 200).map((s) => {
+			const hits = switches.filter((s) => (!q || s.name.toLowerCase().includes(q)) && (!f || (f === "on" ? effective(s) === true : from(s) === f)));
+			const pages = Math.max(1, Math.ceil(hits.length / pageSize));
+			page = Math.min(page, pages - 1);
+			const start = hits.length ? page * pageSize + 1 : 0, end = Math.min((page + 1) * pageSize, hits.length);
+			const pager = () => '<div class="switch-paging"><span class="dim small">' + (hits.length ? 'Showing ' + start + '–' + end + ' of ' + hits.length + ' matching switches' : 'No switches match your search.') + '</span><div class="switch-paging-controls"><label class="dim small">Per page <select class="switch-page-size" aria-label="Switches per page"><option value="24"' + (pageSize === 24 ? ' selected' : '') + '>24</option><option value="48"' + (pageSize === 48 ? ' selected' : '') + '>48</option><option value="96"' + (pageSize === 96 ? ' selected' : '') + '>96</option></select></label><button class="btn" data-page="prev"' + (page === 0 ? ' disabled' : '') + '>Previous</button><span class="dim small">Page ' + (hits.length ? page + 1 : 0) + ' of ' + pages + '</span><button class="btn" data-page="next"' + (page >= pages - 1 ? ' disabled' : '') + '>Next</button></div></div>';
+			list.innerHTML = pager() + '<div class="switch-grid">' +
+				hits.slice(page * pageSize, (page + 1) * pageSize).map((s) => {
 					const v = effective(s), bool = typeof v === "boolean" || (v === undefined && typeof s.build !== "object");
 					const edit = bool
-						? '<button class="btn' + (v === true ? " primary" : "") + '" data-set="true">On</button> <button class="btn' + (v === false ? " primary" : "") + '" data-set="false">Off</button>'
-						: '<input data-val value="' + esc(typeof v === "string" ? v : JSON.stringify(v ?? "")) + '" style="width:160px"> <button class="btn" data-save>Set</button>';
-					return '<tr data-name="' + esc(s.name) + '"><td class="code small" style="word-break:break-all">' + esc(s.name) + '</td><td class="small" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + esc(show(v)) + '">' + esc(show(v)) +
-						("override" in s ? '<div class="dim small">build: ' + esc(show(s.build)) + "</div>" : "") + '</td><td class="small">' + from(s) + '</td><td style="white-space:nowrap">' + edit +
-						("override" in s ? ' <button class="btn danger" data-reset>Reset</button>' : "") + "</td></tr>";
-				}).join("") + "</table></div>";
-			list.querySelectorAll("tr[data-name]").forEach((tr) => {
-				const name = tr.dataset.name;
+						? '<button class="btn' + (v === true ? " primary" : "") + '" data-set="true">On</button><button class="btn' + (v === false ? " primary" : "") + '" data-set="false">Off</button>'
+						: '<input data-val aria-label="Value for ' + esc(s.name) + '" value="' + esc(typeof v === "string" ? v : JSON.stringify(v ?? "")) + '"><button class="btn" data-save>Set</button>';
+					return '<article class="switch-card" data-name="' + esc(s.name) + '"><h2 class="switch-card-name">' + esc(s.name) + '</h2><div class="switch-card-value"><span class="dim small">Current value · ' + esc(from(s)) + '</span><pre title="' + esc(show(v)) + '">' + esc(show(v)) +
+						("override" in s ? '\nBuild default: ' + esc(show(s.build)) : "") + '</pre></div><div class="switch-card-actions' + (bool ? '' : ' editable') + '">' + edit +
+						("override" in s ? '<button class="btn danger" data-reset>Reset</button>' : "") + "</div></article>";
+				}).join("") + '</div>' + pager();
+			list.querySelectorAll(".switch-card[data-name]").forEach((card) => {
+				const name = card.dataset.name;
 				const set = (value) => act(() => api("setFeatureSwitch", { name, value }), name + " set").then(route);
-				tr.querySelectorAll("[data-set]").forEach((b) => b.onclick = () => set(b.dataset.set === "true"));
-				const save = tr.querySelector("[data-save]");
+				card.querySelectorAll("[data-set]").forEach((b) => b.onclick = () => set(b.dataset.set === "true"));
+				const save = card.querySelector("[data-save]");
 				if (save) save.onclick = () => {
-					const raw = tr.querySelector("[data-val]").value.trim();
+					const raw = card.querySelector("[data-val]").value.trim();
 					let value = raw;
 					// a number or a JSON list as itself, anything else as text
 					if (/^-?\d+(\.\d+)?$/.test(raw)) value = Number(raw);
 					else if (/^\[.*\]$/.test(raw)) { try { value = JSON.parse(raw); } catch {} }
 					set(value);
 				};
-				const reset = tr.querySelector("[data-reset]");
+				const reset = card.querySelector("[data-reset]");
 				if (reset) reset.onclick = () => act(() => api("setFeatureSwitch", { name, reset: true }), name + " reset").then(route);
 			});
+			list.querySelectorAll("[data-page]").forEach((button) => button.onclick = () => { page += button.dataset.page === "next" ? 1 : -1; draw(); });
+			list.querySelectorAll(".switch-page-size").forEach((select) => select.onchange = () => { pageSize = Number(select.value); page = 0; draw(); });
 		};
-		$("#sq").oninput = draw;
-		$("#sf").onchange = draw;
+		$("#sq").oninput = () => { page = 0; draw(); };
+		$("#sf").onchange = () => { page = 0; draw(); };
 		draw();
 	},
 
@@ -764,11 +1074,28 @@ const RENDER = {
 				: '<p>Mail is off: set <span class="code">RESEND_API_KEY</span> (and <span class="code">MAIL_FROM</span>, on a domain verified in Resend) and restart. Until then every mail below is only logged as skipped.</p>') +
 			'<p class="dim small">A test mail shows what Resend answers; if the sending domain isn\'t verified yet, it says so here.</p>' +
 			(can("sendTestMail") ? '<div class="row"><input id="mto" placeholder="you@example.org" style="flex:1;min-width:200px"><button class="btn primary" id="msend">Send test mail</button><button class="btn" id="mdigest">Send digests now</button></div>' : "") + "</div>" +
-			'<div class="box"><h2>Recent mail</h2><p class="dim small">Password resets, notification digests for people who turned them on (Settings > Notifications > Email notifications: activity, new messages; only after 30 minutes away, at most every 4 hours) and tests.</p><div class="scroll">' +
-			(m.log.length ? '<table class="table"><tr><th>When</th><th>To</th><th>What</th><th>State</th></tr>' +
-				m.log.map((l) => '<tr><td class="small dim">' + esc(when(l.created_at)) + "</td><td>" + (l.to_addr ? esc(l.to_addr) : '<span class="dim">hidden</span>') + (l.screen_name ? ' <span class="dim small">@' + esc(l.screen_name) + "</span>" : "") +
-					"</td><td>" + esc(l.subject) + ' <span class="dim small">' + esc(l.kind) + "</span></td><td>" + pill(l.status) + (l.error ? '<div class="small dim">' + esc(l.error) + "</div>" : "") + "</td></tr>").join("") + "</table>"
-				: '<div class="empty">Nothing sent yet.</div>') + "</div></div>";
+			'<div class="box"><h2>Recent mail</h2><p class="dim small">Password resets, notification digests for people who turned them on (Settings > Notifications > Email notifications: activity, new messages; only after 30 minutes away, at most every 4 hours) and tests.</p>' +
+			'<div class="bar"><input id="mail-search" type="search" placeholder="Search recipient, handle, subject, type or status" aria-label="Search recent mail"><span class="dim small" id="mail-count" role="status"></span></div><div class="scroll">' +
+			(m.log.length ? '<table class="table mail-table"><tr><th>When</th><th>To</th><th>What</th><th>State</th></tr>' +
+				m.log.map((l) => '<tr data-mail data-search="' + esc([l.to_addr, l.screen_name && "@" + l.screen_name, l.subject, l.kind, l.status, l.error].filter(Boolean).join(" ").toLocaleLowerCase()) + '"><td class="small dim">' + esc(when(l.created_at)) + "</td><td>" + (l.to_addr ? esc(l.to_addr) : '<span class="dim">hidden</span>') + (l.screen_name ? ' <span class="dim small">@' + esc(l.screen_name) + "</span>" : "") +
+					"</td><td>" + esc(l.subject) + ' <span class="dim small">' + esc(l.kind) + "</span></td><td>" + pill(l.status) + (l.error ? '<div class="small dim">' + esc(l.error) + "</div>" : "") + "</td></tr>").join("") + "</table><div class=\"empty\" id=\"mail-empty\" hidden></div>"
+				: '<div class="empty" id="mail-empty">Nothing sent yet.</div>') + "</div></div>";
+		const mailRows = [...main.querySelectorAll("[data-mail]")];
+		const mailSearch = $("#mail-search"), mailCount = $("#mail-count"), mailEmpty = $("#mail-empty");
+		const filterMail = () => {
+			const query = mailSearch.value.trim().toLocaleLowerCase();
+			let visible = 0;
+			mailRows.forEach((row) => {
+				const match = !query || row.dataset.search.includes(query);
+				row.hidden = !match;
+				if (match) visible++;
+			});
+			mailCount.textContent = query ? visible + " of " + mailRows.length + " messages" : mailRows.length + " messages";
+			mailEmpty.hidden = visible > 0;
+			mailEmpty.textContent = query ? 'No recent mail matches “' + mailSearch.value.trim() + '”.' : "Nothing sent yet.";
+		};
+		mailSearch.addEventListener("input", filterMail);
+		filterMail();
 		if ($("#msend")) $("#msend").onclick = () => act(() => api("sendTestMail", { to: $("#mto").value }), "Test mail sent").then(route);
 		if ($("#mdigest")) $("#mdigest").onclick = () => act(async () => { const r = await api("runMailDigests"); notice(r.sent + " digest(s) sent"); }).then(route);
 	},
@@ -777,22 +1104,23 @@ const RENDER = {
 		const { cards } = await api("cards");
 		const val = (c, k) => esc(c[k] ?? "");
 		const local = (d) => d ? new Date(new Date(d).getTime() - new Date(d).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : "";
-		const form = (c = { kind: "news" }) =>
-			'<div class="row"><select data-f="kind"><option value="news"' + (c.kind === "news" ? " selected" : "") + '>News</option><option value="sports"' + (c.kind === "sports" ? " selected" : "") + ">Sports</option></select>" +
-			'<input data-f="title" placeholder="Title" maxlength="100" style="flex:2;min-width:200px" value="' + val(c, "title") + '">' +
-			'<input data-f="category" placeholder="Category, like Technology or Premier League" maxlength="40" style="flex:1;min-width:160px" value="' + val(c, "category") + '"></div>' +
-			'<div class="row" style="margin-top:8px"><input data-f="summary" placeholder="Summary (optional)" maxlength="280" style="flex:2;min-width:200px" value="' + val(c, "summary") + '">' +
-			'<input data-f="query" placeholder="Opens a search for, like #launch" maxlength="200" style="flex:1;min-width:160px" value="' + val(c, "query") + '"></div>' +
-			'<div class="row sports" style="margin-top:8px"><input data-f="home" placeholder="Home team" maxlength="40" value="' + val(c, "home") + '"><input data-f="home_score" placeholder="Score" maxlength="8" style="width:70px" value="' + val(c, "home_score") + '">' +
-			'<input data-f="away" placeholder="Away team" maxlength="40" value="' + val(c, "away") + '"><input data-f="away_score" placeholder="Score" maxlength="8" style="width:70px" value="' + val(c, "away_score") + '">' +
-			'<select data-f="state">' + ["Scheduled", "InProgress", "Completed", "Postponed", "Cancelled"].map((s) => '<option value="' + s + '"' + (c.state === s ? " selected" : "") + ">" + (s === "InProgress" ? "Live" : s === "Completed" ? "Final" : s) + "</option>").join("") + "</select>" +
-			'<input data-f="clock" placeholder="Clock, like 2nd half" maxlength="20" style="width:140px" value="' + val(c, "clock") + '">' +
-			'<label class="small dim">Starts <input type="datetime-local" data-f="starts_at" value="' + local(c.starts_at) + '"></label></div>' +
-			'<div class="row" style="margin-top:8px"><label class="btn">Picture<input type="file" data-image accept="image/png,image/jpeg,image/webp" hidden></label><span class="dim small" data-imagename>' + (c.has_image ? "has a picture" : "PNG, JPEG or WebP, up to 1 MB") + "</span>" +
-			(c.has_image ? '<label class="small"><input type="checkbox" data-f="removeImage"> remove picture</label>' : "") +
-			'<label class="small dim">Until <input type="datetime-local" data-f="ends_at" value="' + local(c.ends_at) + '"></label>' +
-			'<label class="small dim">Order <input data-f="position" type="number" style="width:60px" value="' + (c.position ?? 0) + '"></label>' +
-			'<label class="small"><input type="checkbox" data-f="hidden"' + (c.hidden ? " checked" : "") + "> hidden</label></div>";
+		const form = (c = { kind: "news" }) => '<div class="card-form"><div class="card-basic-grid">' +
+			'<label class="field"><span>Card type</span><select data-f="kind"><option value="news"' + (c.kind === "news" ? " selected" : "") + '>News</option><option value="sports"' + (c.kind === "sports" ? " selected" : "") + ">Sports</option></select></label>" +
+			'<label class="field"><span>Title</span><input data-f="title" maxlength="100" value="' + val(c, "title") + '"></label>' +
+			'<label class="field"><span>Category</span><input data-f="category" placeholder="Technology or Premier League" maxlength="40" value="' + val(c, "category") + '"></label>' +
+			'<label class="field card-wide"><span>Summary (optional)</span><input data-f="summary" maxlength="280" value="' + val(c, "summary") + '"></label>' +
+			'<label class="field"><span>Search query</span><input data-f="query" placeholder="#launch" maxlength="200" value="' + val(c, "query") + '"></label></div>' +
+			'<div class="sports"><h3>Scoreboard</h3><div class="card-sports-grid">' +
+			'<label class="field"><span>Home team</span><input data-f="home" maxlength="40" value="' + val(c, "home") + '"></label><label class="field"><span>Home score</span><input data-f="home_score" maxlength="8" value="' + val(c, "home_score") + '"></label>' +
+			'<label class="field"><span>Away team</span><input data-f="away" maxlength="40" value="' + val(c, "away") + '"></label><label class="field"><span>Away score</span><input data-f="away_score" maxlength="8" value="' + val(c, "away_score") + '"></label>' +
+			'<label class="field"><span>Game status</span><select data-f="state">' + ["Scheduled", "InProgress", "Completed", "Postponed", "Cancelled"].map((s) => '<option value="' + s + '"' + (c.state === s ? " selected" : "") + ">" + (s === "InProgress" ? "Live" : s === "Completed" ? "Final" : s) + "</option>").join("") + "</select></label>" +
+			'<label class="field"><span>Game clock</span><input data-f="clock" placeholder="2nd half" maxlength="20" value="' + val(c, "clock") + '"></label>' +
+			'<label class="field"><span>Starts at</span><input type="datetime-local" data-f="starts_at" value="' + local(c.starts_at) + '"></label></div></div>' +
+			'<div class="card-options-grid"><div class="field"><span>Picture</span><div class="card-upload"><label class="btn">Choose image<input type="file" data-image accept="image/png,image/jpeg,image/webp" hidden></label><span class="dim small" data-imagename>' + (c.has_image ? "Image selected" : "PNG, JPEG or WebP, up to 1 MB") + "</span></div></div>" +
+			'<label class="field"><span>Remove after</span><input type="datetime-local" data-f="ends_at" value="' + local(c.ends_at) + '"></label>' +
+			'<label class="field"><span>Display order</span><input data-f="position" type="number" value="' + (c.position ?? 0) + '"></label>' +
+			'<div><label class="card-toggle"><input type="checkbox" data-f="hidden"' + (c.hidden ? " checked" : "") + "> Hidden</label>" +
+			(c.has_image ? '<label class="card-toggle"><input type="checkbox" data-f="removeImage"> Remove current image</label>' : "") + "</div></div></div>";
 		const read = async (box) => {
 			const out = {};
 			box.querySelectorAll("[data-f]").forEach((i) => out[i.dataset.f] = i.type === "checkbox" ? i.checked : i.type === "datetime-local" ? (i.value ? new Date(i.value).toISOString() : "") : i.value);
@@ -841,11 +1169,14 @@ const RENDER = {
 		main.innerHTML = "<h1>Topics</h1>" +
 			'<p class="dim">People follow topics from "Topics to follow" in the side bar and from a post\'s menu. A post matches a topic when it has one of its keywords (with or without #). "For you" lifts posts on followed topics and labels the ones from accounts people don\'t follow; "Not interested" keeps them out.</p>' +
 			(can("saveTopic") ? '<div class="box" style="margin-bottom:16px" id="tnew"><h2>New topic</h2>' + form() + '<div class="row" style="margin-top:8px"><button class="btn primary" id="tc">Create</button></div></div>' : "") +
+			(topics.length ? '<div class="bar"><input id="topic-search" type="search" placeholder="Search topics, descriptions or keywords" aria-label="Search topics"><span class="dim small" id="topic-count" role="status"></span></div>' : "") +
 			'<div class="scroll">' + (topics.length
-				? '<table class="table"><tr><th>Topic</th><th>Keywords</th><th>Followers</th><th></th></tr>' +
-					topics.map((t) => '<tr data-topic="' + esc(t.id) + '"><td><b>' + esc(t.name) + '</b><div class="small dim">' + esc(t.description) + "</div></td><td class=\"small\">" + esc(t.keywords.join(", ")) + "</td><td>" + t.followers +
+				? '<table class="table topic-table"><tr><th>Topic</th><th>Keywords</th><th>Followers</th><th></th></tr>' +
+					topics.map((t) => '<tr data-topic="' + esc(t.id) + '" data-search="' + esc([t.id, t.name, t.description, ...t.keywords].join(" ").toLocaleLowerCase()) + '"><td><b>' + esc(t.name) + '</b><div class="small dim">' + esc(t.description) + "</div></td><td class=\"small\">" + esc(t.keywords.join(", ")) + "</td><td>" + t.followers +
 						"</td><td>" + (can("saveTopic") ? '<button class="btn" data-edit="' + esc(t.id) + '">Edit</button> <button class="btn danger" data-del="' + esc(t.id) + '">Delete</button>' : "") + "</td></tr>").join("") + "</table>"
-				: '<div class="empty">No topics yet.</div>') + "</div>";
+				: '<div class="empty">No topics yet.</div>') + "</div>" +
+			(topics.length ? '<div class="empty" id="topic-empty" hidden></div>' : "");
+		if (topics.length) tableSearch(main, "topic-search", ".topic-table tr[data-search]", "topic-count", "topic-empty", "topics");
 		if ($("#tc")) $("#tc").onclick = () => act(() => api("saveTopic", read($("#tnew"))), "Topic created").then(route);
 		main.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => {
 			const t = topics.find((x) => x.id === b.dataset.edit);
@@ -890,16 +1221,19 @@ const RENDER = {
 		main.innerHTML = "<h1>OAuth apps</h1>" +
 			'<p class="dim">Apps people can sign in to with their account here: ones registered under Developer apps, and ones that use the address of their own client ID document instead (they have no owner here). Blocking an app ends everyone\'s access to it and stops it asking again.</p>' +
 			(can("blockOAuthApp") ? '<div class="box" style="margin-bottom:16px"><h2>Block an app nobody has used yet</h2><div class="row"><input id="obu" placeholder="https://app.example/oauth-client.json" style="flex:2;min-width:220px"><input id="obr" placeholder="Reason" maxlength="500" style="flex:1;min-width:160px"><button class="btn danger" id="obgo">Block</button></div></div>' : "") +
+			(apps.length ? '<div class="bar"><input id="oauth-search" type="search" placeholder="Search apps, owners or client IDs" aria-label="Search OAuth apps"><span class="dim small" id="oauth-count" role="status"></span></div>' : "") +
 			'<div class="scroll">' + (apps.length
-				? '<table class="table"><tr><th>App</th><th>People using it</th><th>State</th><th></th></tr>' +
-					apps.map((x) => "<tr><td><b>" + esc(x.name) + '</b><div class="dim small">' + who(x) + "</div>" +
+				? '<table class="table oauth-table"><tr><th>App</th><th>People using it</th><th>State</th><th></th></tr>' +
+					apps.map((x) => '<tr data-search="' + esc([x.name, x.owner || "", x.metadata_url || "", x.redirect_uri || "", x.blocked_reason || ""].join(" ").toLocaleLowerCase()) + '"><td><b>' + esc(x.name) + '</b><div class="dim small">' + who(x) + "</div>" +
 						(x.blocked_at ? '<div class="dim small">Blocked ' + esc(when(x.blocked_at)) + (x.blocked_reason ? ": " + esc(x.blocked_reason) : "") + "</div>" : "") +
 						"</td><td>" + esc(String(x.grants)) + "</td><td>" + state(x) + "</td><td>" +
 						(x.blocked_at
 							? (can("unblockOAuthApp") ? '<button class="btn" data-unblock="' + esc(x.id) + '">Unblock</button>' : "")
 							: !x.revoked && can("blockOAuthApp") ? '<button class="btn danger" data-block="' + esc(x.id) + '">Block</button>' : "") +
 						"</td></tr>").join("") + "</table>"
-				: '<div class="empty">No OAuth apps yet.</div>') + "</div>";
+				: '<div class="empty">No OAuth apps yet.</div>') + "</div>" +
+			(apps.length ? '<div class="empty" id="oauth-empty" hidden></div>' : "");
+		if (apps.length) tableSearch(main, "oauth-search", ".oauth-table tr[data-search]", "oauth-count", "oauth-empty", "apps");
 		const block = async (body, name) => {
 			if (!(await ask("Block " + name + "? Everyone signed in to it here loses access, and it can't ask again until you unblock it."))) return;
 			act(() => api("blockOAuthApp", body), "Blocked").then(route);
@@ -922,29 +1256,31 @@ const RENDER = {
 		main.innerHTML = "<h1>Federation</h1>" +
 			'<p class="dim">Instances on the shared list in <a href="https://github.com/Xittered/xitter/blob/main/instances.json">instances.json</a> share public accounts, posts, media, likes, reposts and follows. Each one moderates its own people. Defederating stops all traffic with an instance and hides what came from it here.</p>' +
 			(f.enabled ? "" : '<div class="box">Federation is off on this instance (FEDERATION=off).</div>') +
-			'<div class="box" style="margin-bottom:16px"><h2>This instance</h2><p>Address <span class="code">' + esc(f.id) + '</span>, key <span class="code">' + esc(f.public_key) + "</span></p>" +
+			'<div class="box federation-current" style="margin-bottom:16px"><h2>This instance</h2><p>Address <span class="code">' + esc(f.id) + '</span>, key <span class="code">' + esc(f.public_key) + "</span></p>" +
 			(f.listed_here
 				? '<p class="dim small">Listed as ' + esc(f.listed_here.name) + " (" + esc(f.listed_here.state) + ")" + (f.listed_here.public_key && f.listed_here.public_key !== f.public_key ? '. <b>The list has a different key for this instance, so others refuse it.</b>' : "") + "</p>"
 				: '<p class="dim small">Not on the list yet. Check the <a href="https://github.com/Xittered/xitter/blob/main/FEDERATION.md#requirements">requirements</a>, write your rules under Settings, then open a pull request that adds this entry to instances.json:</p><pre class="code">' + esc(entry) + "</pre>") +
 			'<p class="dim small">List sequence ' + esc(String(f.registry.sequence)) + ", checked " + esc(f.registry.checked_at ? when(f.registry.checked_at) : "never") + (f.registry.error ? ". Last error: " + esc(f.registry.error) : "") + ". Superadmins: " + esc(f.superadmins.join(", ")) + "</p></div>" +
-			'<div class="scroll">' + (f.instances.length
-				? '<table class="table"><tr><th>Instance</th><th>State</th><th>Accounts</th><th>Posts</th><th>Last sync</th><th></th></tr>' +
-					f.instances.map((i) => "<tr><td><b>" + esc(i.name) + '</b><div class="dim small">' + esc(i.id) + (i.key_source ? ", key from " + esc(i.key_source) : "") + "</div>" +
+			(can("admin") ? '<div class="box" style="margin:0 0 16px"><h2>Defederate an instance</h2><div class="row"><input id="fbi" placeholder="xit.example.org" style="flex:1;min-width:180px"><input id="fbr" placeholder="Reason" maxlength="500" style="flex:2;min-width:200px"><button class="btn danger" id="fbgo">Defederate</button></div></div>' : "") +
+			(f.instances.length ? '<div class="bar instance-search-bar"><input id="instance-search" type="search" placeholder="Search instances, domains or moderation reasons" aria-label="Search instances"><span class="dim small" id="instance-count" role="status"></span></div>' : "") +
+			'<div>' + (f.instances.length
+				? '<div class="instance-grid">' + f.instances.map((i) => '<article class="instance-card" data-search="' + esc([i.name, i.id, i.key_source || "", i.block?.reason || "", i.block?.by_name || "", i.last_error || ""].join(" ").toLocaleLowerCase()) + '">' +
+						'<div class="instance-card-heading"><div><b>' + esc(i.name) + '</b><div class="dim small">' + esc(i.id) + (i.key_source ? ", key from " + esc(i.key_source) : "") + "</div></div>" + state(i) + "</div>" +
 						(i.block ? '<div class="dim small">' + esc(i.block.reason || "") + (i.block.by_name ? " (" + esc(i.block.by_name) + ")" : "") + "</div>" : "") +
-						(i.key_change ? '<div class="small"><b>It now shows another key.</b></div>' : "") + "</td><td>" + state(i) +
-						"</td><td>" + esc(String(i.accounts)) + "</td><td>" + esc(String(i.posts)) + '</td><td class="small dim">' + esc(i.last_ok_at ? when(i.last_ok_at) : "never") + (i.last_error ? '<div class="small">' + esc(i.last_error) + "</div>" : "") +
-						"</td><td>" + (can("admin")
-							? (i.block
-								? (i.block.source === "registry" || (i.block.source === "emergency" && !f.superadmin) ? "" : '<button class="btn" data-unblock="' + esc(i.id) + '">Federate again</button> ') + '<button class="btn danger" data-purge="' + esc(i.id) + '">Delete its content</button>'
-								: '<button class="btn" data-pull="' + esc(i.id) + '">Sync now</button> <button class="btn danger" data-block="' + esc(i.id) + '">Defederate</button>') +
-								(i.key_change ? ' <button class="btn" data-key="' + esc(i.id) + '">Accept the new key</button>' : "")
-							: "") + "</td></tr>").join("") + "</table>"
+						(i.key_change ? '<div class="small"><b>It now shows another key.</b></div>' : "") +
+						'<div class="instance-card-stats"><div><span class="dim small">Accounts</span><b>' + esc(String(i.accounts)) + '</b></div><div><span class="dim small">Posts</span><b>' + esc(String(i.posts)) + '</b></div><div><span class="dim small">Last sync</span><span class="dim small">' + esc(i.last_ok_at ? when(i.last_ok_at) : "never") + "</span></div></div>" +
+						(i.last_error ? '<div class="dim small">' + esc(i.last_error) + "</div>" : "") +
+						(can("admin") ? '<div class="instance-card-actions">' + (i.block
+							? (i.block.source === "registry" || (i.block.source === "emergency" && !f.superadmin) ? "" : '<button class="btn" data-unblock="' + esc(i.id) + '">Federate again</button>') + '<button class="btn danger" data-purge="' + esc(i.id) + '">Delete its content</button>'
+							: '<button class="btn" data-pull="' + esc(i.id) + '">Sync now</button><button class="btn danger" data-block="' + esc(i.id) + '">Defederate</button>') +
+							(i.key_change ? '<button class="btn" data-key="' + esc(i.id) + '">Accept the new key</button>' : "") + "</div>" : "") + "</article>").join("") + "</div>"
 				: '<div class="empty">No other instances yet.</div>') + "</div>" +
+			(f.instances.length ? '<div class="empty" id="instance-empty" hidden></div>' : "") +
 			'<div class="box" style="margin-top:16px"><h2>Media from other instances</h2><p class="dim small">' +
 				(f.media.stored ? "Saved on this server (FEDERATION_MEDIA=store)." : "Shown straight from their home instance and not saved here.") +
 				" Saved now: " + esc(String(f.media.files)) + " files, " + esc((f.media.bytes / 1048576).toFixed(1)) + " MB.</p>" +
-				(can("admin") && f.media.bytes > 0 ? '<button class="btn danger" id="dropmedia">Delete saved media</button>' : "") + "</div>" +
-			(can("admin") ? '<div class="box" style="margin-top:16px"><h2>Defederate an instance</h2><div class="row"><input id="fbi" placeholder="xit.example.org" style="flex:1;min-width:180px"><input id="fbr" placeholder="Reason" maxlength="500" style="flex:2;min-width:200px"><button class="btn danger" id="fbgo">Defederate</button></div></div>' : "");
+				(can("admin") && f.media.bytes > 0 ? '<button class="btn danger" id="dropmedia">Delete saved media</button>' : "") + "</div>";
+		if (f.instances.length) tableSearch(main, "instance-search", ".instance-card", "instance-count", "instance-empty", "instances");
 		const block = async (instance, reason) => {
 			if (!(await ask("Defederate " + instance + "? Its accounts and posts disappear here and nothing more comes from it until you federate again."))) return;
 			act(() => api("federationBlock", { instance, reason }), "Defederated").then(route);
@@ -1022,13 +1358,15 @@ const RENDER = {
 
 	async reports(main) {
 		const status = sessionStorage.getItem("reportStatus") || "open";
+		const savedQuery = sessionStorage.getItem("reportQuery") || "";
 		const { reports, reasons } = await api("reports", { status });
 		main.innerHTML = '<h1>Reports</h1><div class="bar">' +
 			["open", "actioned", "dismissed"].map((s) => '<button class="btn' + (s === status ? " primary" : "") + '" data-tab="' + s + '">' + s + "</button>").join("") + "</div>" +
+			(reports.length ? '<div class="bar"><input type="search" id="report-search" placeholder="Search reporter, account, post or details" aria-label="Search reports" value="' + esc(savedQuery) + '"><span class="dim small" id="report-count" role="status"></span></div>' : "") +
 			(reports.length ? reports.map((r) => {
 				const reason = reasons[r.reason]?.text || r.reason;
 				const target = r.user_id ? person({ id: r.user_id, screen_name: r.screen_name, name: r.name, avatar_url: r.avatar_url, verified_type: r.verified_type, flag: r.flag, status: r.user_status, role: r.role }) : '<span class="dim">deleted account</span>';
-				return '<div class="box" style="margin-bottom:12px" data-report="' + esc(r.id) + '">' +
+				return '<div class="box" style="margin-bottom:12px" data-report="' + esc(r.id) + '" data-search="' + esc([reason, r.reporter, r.screen_name, r.name, r.details, r.post_text, r.reason, r.id].filter(Boolean).join(" ").toLocaleLowerCase()) + '">' +
 					'<div class="row" style="justify-content:space-between"><div><b>' + esc(reason) + '</b> <span class="dim small">· reported by @' + esc(r.reporter ?? "?") + " · " + esc(when(r.created_at)) + "</span></div>" +
 					(r.other_open ? '<span class="pill suspended">' + r.other_open + " more open about this account</span>" : "") + "</div>" +
 					(r.details ? '<p style="white-space:pre-wrap">' + esc(r.details) + "</p>" : "") +
@@ -1042,8 +1380,23 @@ const RENDER = {
 						(r.user_id ? '<a class="btn" href="#user/' + esc(r.user_id) + '">Open account</a>' : "") + "</div>"
 						: '<p class="dim small">' + esc(r.status) + (r.handled_by ? " by @" + esc(r.handled_by) : "") + (r.handled_at ? " · " + esc(when(r.handled_at)) : "") + (r.note ? " · " + esc(r.note) : "") + "</p>") +
 					"</div>";
-			}).join("") : '<div class="empty">' + (status === "open" ? "No open reports." : "Nothing here.") + "</div>");
+			}).join("") : '<div class="empty">' + (status === "open" ? "No open reports." : "Nothing here.") + "</div>") +
+			(reports.length ? '<div class="empty" id="report-empty" hidden></div>' : "");
 		main.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { sessionStorage.setItem("reportStatus", b.dataset.tab); route(); });
+		if (reports.length) {
+			const input = $("#report-search"), cards = [...main.querySelectorAll("[data-report]")];
+			const filter = () => {
+				const query = input.value.trim().toLocaleLowerCase();
+				let visible = 0;
+				cards.forEach((card) => { const match = !query || card.dataset.search.includes(query); card.hidden = !match; if (match) visible++; });
+				$("#report-count").textContent = query ? visible + " of " + reports.length + " reports" : reports.length + (reports.length === 1 ? " report" : " reports");
+				$("#report-empty").hidden = visible > 0;
+				$("#report-empty").textContent = "No reports match “" + input.value.trim() + "”.";
+				sessionStorage.setItem("reportQuery", input.value);
+			};
+			input.addEventListener("input", filter);
+			filter();
+		}
 		main.querySelectorAll("[data-report]").forEach((box) => {
 			const r = reports.find((x) => x.id === box.dataset.report);
 			box.querySelectorAll("[data-do]").forEach((b) => b.onclick = () => act(async () => {
@@ -1060,10 +1413,11 @@ const RENDER = {
 	},
 
 	async users(main) {
-		main.innerHTML = '<h1>Users</h1><div class="bar"><input id="q" placeholder="Search handle or name" style="flex:1;min-width:180px">' +
-			'<select id="status"><option value="">Any standing</option><option>active</option><option>restricted</option><option>limited</option><option>suspended</option></select>' +
+		main.innerHTML = '<h1>Users</h1><div class="bar"><input id="q" placeholder="Search handle or name" aria-label="Search users" style="flex:1;min-width:180px">' +
+			'<select id="status" aria-label="Filter by standing"><option value="">Any standing</option><option>active</option><option>restricted</option><option>limited</option><option>suspended</option></select>' +
+			'<select id="role-filter" aria-label="Filter by role"><option value="">All users</option><option value="staff">Staff</option><option value="nonstaff">Non-staff</option><option value="admin">Admins</option><option value="moderator">Moderators</option><option value="support">Support</option></select>' +
 			HOME_SELECT +
-			'<label class="row small"><input type="checkbox" id="staff"> Staff only</label></div>' +
+			'<button class="btn" id="clear-filters" type="button">Clear filters</button></div>' +
 			(can("bulkStatus") || can("bulkStrike") ? '<div class="bar" id="bulk" hidden><span class="small" id="picked"></span>' +
 				(can("bulkStatus") ? [["active", "Reinstate", ""], ["restricted", "Restrict", ""], ["limited", "Limit", ""], ["suspended", "Suspend", " danger"]].map(([s, l, c]) => '<button class="btn' + c + '" data-bulk="' + s + '">' + l + "</button>").join("") : "") +
 				(can("bulkStrike") ? '<button class="btn danger" id="bulkStrikeBtn">Strike</button>' : "") + "</div>" : "") +
@@ -1077,7 +1431,7 @@ const RENDER = {
 		let shown = [];
 		const load = async (more) => {
 			const keep = more === true ? picked() : [];
-			const q = { q: $("#q").value, status: $("#status").value, staff: $("#staff").checked, home: $("#home").value };
+			const q = { q: $("#q").value, status: $("#status").value, role: $("#role-filter").value, home: $("#home").value };
 			const { users, total } = await api("users", more === true ? { ...q, offset: shown.length } : more === "same" ? { ...q, limit: Math.max(shown.length, 50) } : q);
 			shown = more === true ? shown.concat(users) : users;
 			$("#list").innerHTML = shown.length ? userTable(shown, false, can("bulkStatus") || can("bulkStrike")) : '<div class="empty">No accounts match.</div>';
@@ -1117,7 +1471,11 @@ const RENDER = {
 		let t;
 		$("#q").oninput = () => { clearTimeout(t); t = setTimeout(() => load(false), 250); };
 		$("#status").onchange = () => load(false);
-		$("#staff").onchange = () => load(false);
+		$("#role-filter").onchange = () => load(false);
+		$("#clear-filters").onclick = () => {
+			$("#q").value = ""; $("#status").value = ""; $("#role-filter").value = ""; $("#home").value = "";
+			sessionStorage.removeItem("userHome"); load(false);
+		};
 		// which instances' accounts to list stays picked for the session
 		$("#home").value = sessionStorage.getItem("userHome") ?? "";
 		$("#home").onchange = () => { sessionStorage.setItem("userHome", $("#home").value); load(false); };
@@ -1128,15 +1486,36 @@ const RENDER = {
 		const home = sessionStorage.getItem("userHome") ?? "";
 		const { orgs } = await api("orgs", { home });
 		main.innerHTML = "<h1>Organisations</h1>" +
-			'<div class="bar">' + HOME_SELECT + "</div>" +
+			'<div class="bar">' + HOME_SELECT + '<input id="org-search" type="search" placeholder="Search organisations by name or handle" aria-label="Search organisations"><span class="dim small" id="org-count" role="status"></span></div>' +
 			'<p class="dim">Organisations are accounts with the gold badge or the grey government badge, and any other account an admin has given affiliates on its page. Their affiliates show the organisation\'s picture as a badge after their name and are listed on its Affiliates tab.</p>' +
 			(can("createOrg") ? '<div class="box" style="margin-bottom:16px"><h2>New organisation</h2><div class="row"><input id="oh" placeholder="handle"><input id="on" placeholder="Name"><button class="btn primary" id="oc">Create</button></div><div id="osecret"></div></div>' : "") +
-			'<div class="scroll">' + (orgs.length ? userTable(orgs, true) : '<div class="empty">' + (home ? "No organisations match." : "No organisations yet. Give an account the gold or grey government badge, or create one above.") + "</div>") + "</div>";
+			'<div class="scroll">' + (orgs.length ? userTable(orgs, true) : '<div class="empty" id="org-empty">' + (home ? "No organisations match." : "No organisations yet. Give an account the gold or grey government badge, or create one above.") + "</div>") +
+			'<div class="empty" id="org-search-empty" hidden></div></div>';
+		const updateOrgSearch = () => {
+			const query = $("#org-search").value.trim().toLocaleLowerCase();
+			const rows = [...main.querySelectorAll(".org-table tr[data-search]")];
+			let visible = 0;
+			rows.forEach((row) => {
+				const match = !query || row.dataset.search.includes(query);
+				row.hidden = !match;
+				if (match) visible++;
+			});
+			$("#org-count").textContent = query ? visible + " of " + rows.length + " organisations" : rows.length + " organisations";
+			const table = main.querySelector(".org-table");
+			if (table) table.hidden = !!query && visible === 0;
+			const noOrgs = $("#org-empty"), noMatches = $("#org-search-empty");
+			if (noOrgs) noOrgs.hidden = !!query;
+			noMatches.hidden = !(query && visible === 0);
+			if (query && visible === 0) noMatches.textContent = 'No organisations match “' + $("#org-search").value.trim() + '”.';
+		};
+		$("#org-search").addEventListener("input", updateOrgSearch);
+		updateOrgSearch();
 		if ($("#oc")) $("#oc").onclick = () => act(async () => {
 			const r = await api("createOrg", { screen_name: $("#oh").value, name: $("#on").value });
 			$("#osecret").innerHTML = '<div class="secret">Created. Its password: <span class="code">' + esc(r.password) + '</span><br><span class="dim small">Shown once. Give it to whoever runs the organisation.</span></div>';
 			const { orgs } = await api("orgs", { home: $("#home").value });
-			main.querySelector(".scroll").innerHTML = userTable(orgs, true);
+			main.querySelector(".scroll").innerHTML = userTable(orgs, true) + '<div class="empty" id="org-search-empty" hidden></div>';
+			updateOrgSearch();
 		});
 		$("#home").value = home;
 		$("#home").onchange = () => { sessionStorage.setItem("userHome", $("#home").value); route(); };
@@ -1255,43 +1634,58 @@ const RENDER = {
 		const [{ invites }, { orgs }, { settings: s }] = await Promise.all([api("invites"), api("orgs"), api("settings")]);
 		const q = s.invite_quota;
 		const state = (i) => i.revoked ? "revoked" : i.uses >= i.max_uses ? "used up" : i.expires_at && new Date(i.expires_at) < new Date() ? "expired" : "open";
-		main.innerHTML = "<h1>Invites</h1>" + tabs +
-			'<div class="box" style="margin-bottom:16px"><h2>Members\' invites</h2><p class="dim small">Members make their own at <a href="/account/invites" target="_blank">/account/invites</a> (in the side bar\'s More menu) while sign-up is by invite. Each is open for 30 days.</p><div class="row">' +
-				'<label class="row"><input type="checkbox" id="qon"' + (q.enabled ? " checked" : "") + (can("admin") ? "" : " disabled") + "> Members can make invites</label>" +
-				'<label class="small dim">A month <input id="qn" type="number" min="1" max="100" style="width:70px" value="' + q.per_month + '"></label>' +
-				'<label class="small dim">Uses each <input id="qu" type="number" min="1" max="100" style="width:70px" value="' + q.uses + '"></label>' +
-				'<label class="small dim">From account age (days) <input id="qa" type="number" min="0" max="3650" style="width:80px" value="' + q.min_age_days + '"></label>' +
-				(can("admin") ? '<button class="btn" id="qsave">Save</button>' : "") + "</div></div>" +
-			(can("createInvite") ? '<div class="box" style="margin-bottom:16px"><h2>Make invites</h2><div class="row">' +
-				'<label class="small dim">How many <input id="n" type="number" min="1" max="50" value="1" style="width:70px"></label>' +
-				'<label class="small dim">Uses each <input id="u" type="number" min="1" value="1" style="width:80px"></label>' +
-				'<label class="small dim">Expires in days <input id="d" type="number" min="0" placeholder="never" style="width:90px"></label>' +
-				'<label class="small dim">Joins organisation <select id="o"><option value="">none</option>' + orgs.map((o) => '<option value="' + esc(o.id) + '">@' + esc(o.screen_name) + "</option>").join("") + "</select></label>" +
-				'<button class="btn primary" id="make">Make</button></div><div id="made"></div></div>' : "") +
-			'<div class="scroll"><table class="table"><tr><th>Code</th><th>State</th><th>Used</th><th>By</th><th>Made</th><th></th></tr>' +
-			invites.map((i) => '<tr><td class="code">' + (i.code ? esc(i.code) : '<span class="dim">hidden</span>') + (i.org ? ' <span class="dim small">→ @' + esc(i.org) + "</span>" : "") + "</td><td>" + esc(state(i)) + "</td><td>" + i.uses + "/" + i.max_uses +
-				(i.used_by.length ? '<div class="dim small">' + i.used_by.map((n) => "@" + esc(n)).join(", ") + "</div>" : "") + '</td><td class="small">' + (i.created_by ? "@" + esc(i.created_by) : '<span class="dim">script</span>') +
-				'</td><td class="small dim">' + esc(when(i.created_at)) + (i.expires_at ? "<br>until " + esc(when(i.expires_at)) : "") + "</td><td>" +
-				(state(i) === "open" && i.code ? '<button class="btn" data-copy="' + esc(i.code) + '">Copy link</button>' + (can("revokeInvite") ? ' <button class="btn danger" data-revoke="' + esc(i.code) + '">Revoke</button>' : "") : "") + "</td></tr>").join("") +
-			"</table></div>";
+		const inviteCard = (i) => {
+			const st = state(i);
+			return '<article class="invite-code-card"><div class="invite-code-heading"><div class="invite-code-value"><b class="code">' + (i.code ? esc(i.code) : '<span class="dim">Code hidden</span>') + '</b>' + (i.org ? '<div class="dim small">For @' + esc(i.org) + "</div>" : "") + '</div><span class="pill' + (st === "open" ? " staff" : st === "revoked" ? " suspended" : "") + '">' + esc(st) + '</span></div>' +
+				'<div class="invite-code-details"><div><span class="dim small">Uses</span><b>' + i.uses + "/" + i.max_uses + '</b></div><div><span class="dim small">Created by</span><b>' + (i.created_by ? "@" + esc(i.created_by) : "script") + '</b></div><div><span class="dim small">Made</span><span>' + esc(when(i.created_at)) + '</span></div>' + (i.expires_at ? '<div><span class="dim small">Expires</span><span>' + esc(when(i.expires_at)) + '</span></div>' : "") + '</div>' +
+				(i.used_by.length ? '<div class="dim small">Used by ' + i.used_by.map((n) => "@" + esc(n)).join(", ") + "</div>" : "") +
+				(st === "open" && i.code ? '<div class="invite-code-actions"><button class="btn" data-copy="' + esc(i.code) + '">Copy link</button>' + (can("revokeInvite") ? '<button class="btn danger" data-revoke="' + esc(i.code) + '">Revoke</button>' : "") + "</div>" : "") +
+				"</article>";
+		};
+		const inviteList = (rows) => rows.length ? '<div class="invite-code-grid">' + rows.map(inviteCard).join("") + '</div>' : '<div class="empty">No invite codes yet.</div>';
+		const numberField = (id, label, value, min, max) => '<div class="invite-field"><label for="' + id + '">' + label + '</label><span class="number-stepper invite-stepper"><input id="' + id + '" type="text" inputmode="numeric" maxlength="10" min="' + min + '"' + (max === undefined ? "" : ' max="' + max + '"') + ' value="' + (value ?? "") + '" autocomplete="off" aria-label="' + label + '"><span class="step-buttons"><button type="button" data-step="' + id + '" data-direction="1" aria-label="Increase ' + label + '"><span class="arrow up"></span></button><button type="button" data-step="' + id + '" data-direction="-1" aria-label="Decrease ' + label + '"><span class="arrow down"></span></button></span></span></div>';
+		main.innerHTML = "<h1>Invites</h1>" + tabs + '<div class="invite-forms-grid">' +
+			'<div class="box"><h2>Members\' invites</h2><p class="dim small">Members make their own at <a href="/account/invites" target="_blank">/account/invites</a> (in the side bar\'s More menu) while sign-up is by invite. Each is open for 30 days.</p>' +
+				'<div class="invite-quota-toggle"><input type="checkbox" id="qon" aria-label="Members can make invites"' + (q.enabled ? " checked" : "") + (can("admin") ? "" : " disabled") + '><span>Members can make invites</span></div>' +
+				'<div class="invite-fields">' + numberField("qn", "Invites a month", q.per_month, 1, 100) + numberField("qu", "Uses each", q.uses, 1, 100) + numberField("qa", "Minimum account age (days)", q.min_age_days, 0, 3650) + "</div>" +
+				(can("admin") ? '<div class="row" style="margin-top:12px"><button class="btn" id="qsave">Save</button></div>' : "") + "</div>" +
+			(can("createInvite") ? '<div class="box"><h2>Make invites</h2><div class="invite-fields">' +
+				numberField("n", "How many", 1, 1, 50) + numberField("u", "Uses each", 1, 1) + numberField("d", "Expires in days (0 for never)", "", 0) +
+				'<div class="invite-field"><label for="o">Joins organisation</label><select id="o"><option value="">None</option>' + orgs.map((o) => '<option value="' + esc(o.id) + '">@' + esc(o.screen_name) + "</option>").join("") + "</select></div></div>" +
+				'<div class="row" style="margin-top:12px"><button class="btn primary" id="make">Make invites</button></div><div id="made"></div></div>' : "") +
+			"</div><div id=\"invite-codes\">" + inviteList(invites) + "</div>";
 		bindTabs();
 		if ($("#qsave")) $("#qsave").onclick = () => act(() => api("saveInviteQuota", { enabled: $("#qon").checked, per_month: Number($("#qn").value), uses: Number($("#qu").value), min_age_days: Number($("#qa").value) }), "Saved").then(route);
+		main.querySelectorAll("[data-step]").forEach((b) => b.onclick = () => {
+			const input = $("#" + b.dataset.step), min = Number(input.min), max = input.max === "" ? Infinity : Number(input.max), direction = Number(b.dataset.direction);
+			const current = input.value === "" ? min : Number(input.value);
+			input.value = String(Math.max(min, Math.min(max, current + direction)));
+			input.dispatchEvent(new Event("input", { bubbles: true }));
+			input.dispatchEvent(new Event("change", { bubbles: true }));
+		});
 		const link = (code) => location.origin + "/signup?code=" + code;
-		main.querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => navigator.clipboard.writeText(link(b.dataset.copy)).then(() => notice("Link copied")));
-		main.querySelectorAll("[data-revoke]").forEach((b) => b.onclick = () => act(() => api("revokeInvite", { code: b.dataset.revoke }), "Revoked").then(route));
+		const bindInviteActions = (root) => {
+			root.querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => navigator.clipboard.writeText(link(b.dataset.copy)).then(() => notice("Link copied")));
+			root.querySelectorAll("[data-revoke]").forEach((b) => b.onclick = () => act(() => api("revokeInvite", { code: b.dataset.revoke }), "Revoked").then(route));
+		};
+		bindInviteActions(main);
 		if ($("#make")) $("#make").onclick = () => act(async () => {
 			const r = await api("createInvite", { count: $("#n").value, uses: $("#u").value, days: $("#d").value, orgId: $("#o").value || undefined });
-			await route();
 			$("#made").innerHTML = '<div class="secret">' + r.codes.map((c) => '<div><span class="code">' + esc(c) + '</span> <a href="' + esc(link(c)) + '" target="_blank" class="small">' + esc(link(c)) + "</a></div>").join("") + "</div>";
+			const { invites: updatedInvites } = await api("invites");
+			const inviteCodes = $("#invite-codes");
+			inviteCodes.innerHTML = inviteList(updatedInvites);
+			bindInviteActions(inviteCodes);
 		});
 	},
 
-	async settings(main) {
+	async settings(main, focus) {
 		const [{ settings: s, features, branding, slots, compression }, { operations: o, automod: am }] = await Promise.all([api("settings"), api("operations")]);
 		const admin = can("admin");
 		const dis = admin ? "" : " disabled";
 		const modes = { invite: "Invite only: a code is needed", open: "Open: anyone can sign up, codes optional", closed: "Closed: no new accounts" };
-		main.innerHTML = "<h1>Settings</h1>" + '<div class="grid2">' +
+		main.innerHTML = "<h1>Settings</h1>" +
+			'<div class="settings-sections"><section class="settings-section" id="settings-account"><h2>Account and access</h2><p class="dim small">Features switched off here disappear from everyone\'s menus and composer.</p><div class="settings-grid">' +
 			'<div class="box"><h2>Sign-up</h2>' +
 			Object.entries(modes).map(([k, v]) => '<label class="row" style="margin:6px 0"><input type="radio" name="mode" value="' + k + '"' + (s.signup_mode === k ? " checked" : "") + dis + "> " + esc(v) + "</label>").join("") +
 			'<div class="field" style="margin-top:12px"><label>New accounts follow (handles, comma separated)</label><input id="follows" value="' + esc(s.default_follows.map((h) => "@" + h).join(", ")) + '"' + dis + "></div>" +
@@ -1299,9 +1693,15 @@ const RENDER = {
 			'<div class="box"><h2>Name and source</h2><div class="field"><label>Instance name (page titles, text in the app, sign-in page, mail)</label><input id="name" maxlength="30" value="' + esc(s.instance_name) + '"' + dis + "></div>" +
 			'<div class="field"><label>Source code link (AGPL-3.0: shown on the sign-in pages)</label><input id="source" value="' + esc(s.source_url) + '"' + dis + "></div>" +
 			(admin ? '<button class="btn primary" id="saveName">Save</button>' : "") + "</div>" +
-			'<div class="box"><h2>Features</h2><p class="dim small">Switched-off features disappear from everyone\'s menus and composer.</p>' +
-			Object.entries(features).map(([k, label]) => '<label class="row" style="margin:6px 0"><input type="checkbox" data-feature="' + k + '"' + (s.features[k] ? " checked" : "") + dis + "> " + esc(label) + "</label>").join("") +
-			(admin ? '<button class="btn primary" id="saveFeatures" style="margin-top:8px">Save</button>' : "") + "</div>" +
+			[
+				["Core social", ["communities", "lists"]],
+				["Composer", ["gifs", "polls", "location", "scheduling"]],
+				["AI and tools", ["grok", "image_gen", "premium", "calls", "history", "creator_studio", "spaces"]],
+				["Accounts and integrations", ["business", "notes_everyone", "link_previews", "archive_import", "money"]],
+			].map(([group, keys], index) => '<div class="box"><h2>' + group + '</h2><div class="feature-grid">' +
+				keys.map((k) => '<label class="feature-option"><input type="checkbox" data-feature="' + k + '"' + (s.features[k] ? " checked" : "") + dis + "><span>" + esc(features[k]) + "</span></label>").join("") + "</div>" +
+				(index === 3 && admin ? '<button class="btn primary" id="saveFeatures" style="margin-top:8px">Save features</button>' : "") + "</div>").join("") + "</div></section>" +
+			'<section class="settings-section" id="settings-limits"><h2>Limits</h2><div class="settings-grid settings-limits-grid"><div class="settings-column">' +
 			'<div class="box"><h2>Upload limits</h2>' +
 			[["image_mb", "Image size, MB"], ["video_mb", "Video size, MB"], ["video_seconds", "Video length, seconds"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" data-limit="' + k + '" value="' + esc(s.limits[k]) + '"' + dis + "></div>").join("") +
@@ -1318,19 +1718,21 @@ const RENDER = {
 			(admin ? '<button class="btn primary" id="saveMedia">Save</button>' : "") +
 			'<p class="dim small" id="sweepState" style="margin-top:16px">' + esc(sweepText(compression)) + "</p>" +
 			(admin ? '<button class="btn" id="compressStored">Compress stored files</button>' : "") + "</div>" +
+			"</div><div class=\"settings-column\">" +
 			'<div class="box"><h2>Rate limits</h2><p class="dim small">Requests per account per 15 minutes. Staff have no limits. Hitting one shows the app\'s "try again later" and a line in the server log.</p>' +
 			[["read", "Any request (a page load is about 30)"], ["endpoint", "Any one kind of request (a stuck page loses only that)"], ["write", "Other changes (settings, deletes, lists…)"], ["post", "Posts and replies"], ["engage", "Likes, reposts, bookmarks, follows"], ["dm", "Messages sent"], ["upload", "Files uploaded"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-rate="' + k + '" value="' + esc(s.rate_limits[k]) + '"' + dis + "></div>").join("") +
-			(admin ? '<button class="btn primary" id="saveRates">Save</button>' : "") + "</div>" +
-			'<div class="box"><h2>Post length</h2><p class="dim small">The longest post each badge may write, counted like X counts (links 23, Chinese, Japanese, Korean and emoji 2). Past 280 a post shows a preview with "Show more". Changes reach the composer on its next page load.</p>' +
-			[["none", "No badge"], ["blue", "Blue check"], ["business", "Gold check (organisations)"], ["government", "Grey check (government organisations and officials)"]]
-				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-postlen="' + k + '" value="' + esc(s.post_limits[k]) + '"' + dis + "></div>").join("") +
-			(admin ? '<button class="btn primary" id="savePostLen">Save</button>' : "") + "</div>" +
-			'<div class="box"><h2>Daily caps</h2><p class="dim small">The most posts and replies one account may make in any 24 hours. Staff have no caps.</p>' +
+			(admin ? '<button class="btn primary" id="saveRates">Save rate limits</button>' : "") +
+			'<h3 style="margin:20px 0 8px;padding-top:16px;border-top:1px solid var(--line);font-size:15px">Daily caps</h3><p class="dim small">The most posts and replies one account may make in any 24 hours. Staff have no caps.</p>' +
 			'<label class="row" style="margin:6px 0"><input type="checkbox" id="capsOn"' + (s.daily_caps.enabled ? " checked" : "") + dis + "> Cap posts and replies per day</label>" +
 			'<div class="field"><label>Posts a day</label><input type="number" min="1" id="capPosts" value="' + esc(s.daily_caps.posts) + '"' + dis + "></div>" +
 			'<div class="field"><label>Replies a day</label><input type="number" min="1" id="capReplies" value="' + esc(s.daily_caps.replies) + '"' + dis + "></div>" +
-			(admin ? '<button class="btn primary" id="saveCaps">Save</button>' : "") + "</div>" +
+			(admin ? '<button class="btn primary" id="saveCaps">Save daily caps</button>' : "") + "</div></div><div class=\"settings-column\">" +
+			'<div class="box"><h2>Post length</h2><p class="dim small">The longest post each badge may write, counted like X counts (links 23, Chinese, Japanese, Korean and emoji 2). Past 280 a post shows a preview with "Show more". Changes reach the composer on its next page load.</p>' +
+			[["none", "No badge"], ["blue", "Blue check"], ["business", "Gold check (organisations)"], ["government", "Grey check (government organisations and officials)"]]
+				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-postlen="' + k + '" value="' + esc(s.post_limits[k]) + '"' + dis + "></div>").join("") +
+			(admin ? '<button class="btn primary" id="savePostLen">Save</button>' : "") + "</div></div></div></section>" +
+			'<section class="settings-section" id="settings-community"><h2>Community and instance</h2><div class="settings-grid">' +
 			'<div class="box"><h2>Announcement</h2><p class="dim small">A banner above everyone\'s timeline until they close it. Saving new text shows it again to everyone.</p>' +
 			'<div class="field"><label>Text (empty removes the banner)</label><textarea id="annText" maxlength="500"' + dis + ">" + esc(s.announcement.text) + "</textarea></div>" +
 			'<div class="field"><label>Buttons (up to 4, each opens its link in a new tab)</label><div id="annButtons" class="ann-buttons">' +
@@ -1343,7 +1745,8 @@ const RENDER = {
 			'<div class="box"><h2>Maintenance</h2><p class="dim small">While it\'s on, everyone except staff sees this message instead of the site.</p>' +
 			'<label class="row" style="margin:6px 0"><input type="checkbox" id="maint"' + (o.maintenance ? " checked" : "") + dis + "> Maintenance mode</label>" +
 			'<div class="field"><label>Message</label><input id="maintMsg" maxlength="500" value="' + esc(o.message) + '"' + dis + "></div>" +
-			(admin ? '<button class="btn primary" data-save-ops>Save</button>' : "") + "</div>" +
+			(admin ? '<button class="btn primary" data-save-ops>Save</button>' : "") + "</div></div></section>" +
+			'<section class="settings-section" id="settings-safety"><h2>Safety and moderation</h2><div class="settings-grid">' +
 			'<div class="box"><h2>Blocked phrases</h2><p class="dim small">Posts, articles, profiles, poll choices, image descriptions, lists and communities containing any of these are refused. One per line; case, look-alike letters from other alphabets and invisible characters are ignored.</p>' +
 			'<textarea id="blocked"' + dis + ">" + esc(o.blocked_phrases.join("\n")) + "</textarea>" +
 			(admin ? '<button class="btn primary" data-save-ops style="margin-top:8px">Save</button>' : "") + "</div>" +
@@ -1351,17 +1754,17 @@ const RENDER = {
 			'<textarea id="blockedNames"' + dis + ">" + esc((o.blocked_names || []).join("\n")) + "</textarea>" +
 			(admin ? '<div class="row" style="margin-top:8px"><button class="btn primary" data-save-ops>Save</button><button class="btn" id="checkNames">Check existing accounts</button></div><div id="nameHits"></div>' : "") + "</div>" +
 			'<div class="box"><h2>Automod</h2><p class="dim small">Slurs, explicit hate, transphobia and abuse such as "kill yourself" are refused in posts, profiles, names, polls, image descriptions, lists, communities, articles and notes. Each refusal is a strike the account can appeal. Reclaimed queer words used without an attack and NSFW text are left alone. DMs are end-to-end encrypted, so they can\'t be read.</p>' +
-			'<label class="row" style="margin:6px 0"><input type="checkbox" id="amOn"' + (am.enabled ? " checked" : "") + dis + "> Strike accounts automatically</label>" +
+			'<label class="row automod-toggle" style="margin:6px 0"><input type="checkbox" id="amOn"' + (am.enabled ? " checked" : "") + dis + "> Strike accounts automatically</label>" +
 			'<div class="field"><label>Strikes count for (days)</label><input id="amDays" type="number" min="1" max="3650" value="' + esc(am.strike_days) + '"' + dis + "></div>" +
 			'<div class="field"><label>Steps, one per strike: 0 is a warning, a number is hours suspended, -1 is permanent</label><input id="amLadder" value="' + esc(am.ladder.join(", ")) + '"' + dis + "></div>" +
 			'<div class="field"><label>Second chances a week: refused content that doesn\'t count as a strike, 0 for none</label><input id="amChances" type="number" min="0" max="100" value="' + esc(am.second_chances ?? 5) + '"' + dis + "></div>" +
-			(admin ? '<button class="btn primary" id="saveAutomod">Save</button>' : "") + "</div>" +
+			(admin ? '<div class="automod-actions"><button class="btn primary" id="saveAutomod">Save</button></div>' : "") + "</div>" +
 			'<div class="box"><h2>Import from X</h2><p class="dim small">While the Import from X feature is on, who may bring their posts over from an X archive. Staff accounts skip both. An import waiting for approval is deleted after a week.</p>' +
 			'<div class="field"><label>From account age (days, 0 for any)</label><input id="aiDays" type="number" min="0" max="3650" value="' + esc(String(s.archive_import.min_age_days)) + '"' + dis + "></div>" +
-			'<label class="row" style="margin:6px 0"><input type="checkbox" id="aiApproval"' + (s.archive_import.approval ? " checked" : "") + dis + "> Staff approve each import before it starts</label>" +
-			(admin ? '<button class="btn primary" id="saveArchiveImport">Save</button>' : "") +
-			(can("archiveImports") ? '<h2 class="small" style="margin-top:16px">Waiting for approval</h2><div id="aiPending" class="dim small">Loading…</div>' : "") + "</div>" +
-
+			'<label class="archive-import-approval"><input type="checkbox" id="aiApproval"' + (s.archive_import.approval ? " checked" : "") + dis + "> Staff approve each import before it starts</label>" +
+			(admin ? '<div class="archive-import-actions"><button class="btn primary" id="saveArchiveImport">Save</button></div>' : "") +
+			(can("archiveImports") ? '<div class="archive-import-pending"><h2>Waiting for approval</h2><div id="aiPending" class="dim small">Loading…</div></div>' : "") + "</div></div></section>" +
+			'<section class="settings-section" id="settings-discovery"><h2>Discovery</h2><div class="settings-grid">' +
 			'<div class="box"><h2>Trends</h2><div class="field"><label>Hidden hashtags, one per line</label><textarea id="hiddenTrends"' + dis + ">" + esc(o.hidden_trends.map((t) => "#" + t).join("\n")) + "</textarea></div>" +
 			'<div class="field"><label>Promoted hashtags, shown first</label><textarea id="promotedTrends"' + dis + ">" + esc(o.promoted_trends.map((t) => "#" + t).join("\n")) + "</textarea></div>" +
 			'<div class="row"><div class="field"><label>People needed before a hashtag trends</label><input id="trendPeople" type="number" min="1" max="1000" value="' + esc(String(o.trend_min_people ?? 3)) + '"' + dis + "></div>" +
@@ -1371,14 +1774,34 @@ const RENDER = {
 			'<div class="box"><h2>Pinned post</h2><p class="dim small">Shown at the top of everyone\'s home timeline. Paste a post\'s link or id; empty unpins.</p>' +
 			'<div class="field"><input id="pin" value="' + esc(o.global_pin || "") + '" placeholder="https://…/status/123"' + dis + "></div>" +
 			(admin ? '<button class="btn primary" data-save-ops>Save</button>' : "") + "</div>" +
-			"</div>" +
-			"<h2>Logo and icons</h2><p class=\"dim small\">PNG, JPEG or WebP, up to 2 MB. Each replaces the shipped image of the same name.</p>" +
+			"</div></section></div>" +
+			'<section class="settings-section" id="settings-branding"><h2>Branding</h2><p class="dim small">PNG, JPEG or WebP, up to 2 MB. Each replaces the shipped image of the same name.</p>' +
 			'<div class="grid2">' + Object.entries(slots).map(([slot, label]) =>
 				'<div class="box"><h2 class="small">' + esc(label) + '</h2><div style="background:' + (slot.endsWith("light") ? "#fff" : "#000") + ';border:1px solid var(--line);border-radius:8px;padding:12px;display:grid;place-items:center;min-height:80px">' +
 				'<img alt="" style="max-width:100%;max-height:60px" src="/public/' + slot + ".png?t=" + Date.now() + '"></div>' +
 				'<div class="row" style="margin-top:10px">' + (admin ? '<label class="btn">Upload<input type="file" accept="image/png,image/jpeg,image/webp" data-slot="' + slot + '" hidden></label>' : "") +
 				(admin && branding[slot] ? '<button class="btn" data-reset="' + slot + '">Use the default</button>' : "") +
-				'<span class="dim small">' + (branding[slot] ? "uploaded" : "default") + "</span></div></div>").join("") + "</div>";
+			'<span class="dim small">' + (branding[slot] ? "uploaded" : "default") + "</span></div></div>").join("") + "</div></section>";
+
+		const stackCards = (sectionId, columns) => {
+			const grid = main.querySelector("#" + sectionId + " .settings-grid");
+			if (!grid) return;
+			const cards = [...grid.querySelectorAll(":scope > .box")];
+			const byTitle = new Map(cards.map((card) => [card.querySelector("h2")?.textContent, card]));
+			grid.replaceChildren(...columns.map((titles) => {
+				const column = document.createElement("div");
+				column.className = "settings-column";
+				titles.forEach((title) => { const card = byTitle.get(title); if (card) column.append(card); });
+				return column;
+			}));
+		};
+		stackCards("settings-account", [["Sign-up", "Composer"], ["Name and source", "AI and tools"], ["Core social", "Accounts and integrations"]]);
+		stackCards("settings-safety", [["Blocked phrases", "Import from X"], ["Blocked names"], ["Automod"]]);
+
+		if (focus) {
+			const section = main.querySelector("#" + focus);
+			if (section) main.querySelectorAll(".settings-section").forEach((item) => { item.hidden = item !== section; });
+		}
 
 		const save = (body, done) => act(() => api("saveSettings", body), done).then(route);
 		main.querySelectorAll("[name=mode]").forEach((r) => r.onchange = () => act(() => api("setSignupMode", { mode: r.value }), "Sign-up mode saved"));
@@ -1481,6 +1904,12 @@ const RENDER = {
 		});
 		main.querySelectorAll("[data-reset]").forEach((b) => b.onclick = () => act(() => api("resetBranding", { slot: b.dataset.reset }), "Back to the default").then(route));
 	},
+	"settings-account": (main) => RENDER.settings(main, "settings-account"),
+	"settings-limits": (main) => RENDER.settings(main, "settings-limits"),
+	"settings-community": (main) => RENDER.settings(main, "settings-community"),
+	"settings-safety": (main) => RENDER.settings(main, "settings-safety"),
+	"settings-discovery": (main) => RENDER.settings(main, "settings-discovery"),
+	"settings-branding": (main) => RENDER.settings(main, "settings-branding"),
 
 	async automod(main) {
 		main.innerHTML = '<h1>Automod</h1><p class="dim">New posts and profiles are checked as they\'re written. This looks through what was there before: visible posts, newest first, and every profile. Nothing happens to what it finds until you act. Settings &gt; Automod holds the strike ladder.</p>' +
@@ -1528,17 +1957,53 @@ const RENDER = {
 		});
 	},
 
-	async audit(main, filter = {}) {
-		const { entries } = await api("audit", filter);
-		main.innerHTML = '<h1>Audit log</h1><div class="bar"><input id="auditWho" placeholder="@handle" value="' + esc(filter.target || "") + '">' +
-			'<select id="auditAction"><option value="">Every action</option>' + ["automod_strike", "automod_second_chance", "escalate", "expire_sanction", "auto_suspend_name", "temporary_status", "set_status", "bulk_status", "send_staff_message", "revoke_strike", "bulk_strike", "resolve_appeal", "save_automod", "set_role", "set_staff_permissions"]
+	async audit(main, filter, offset) {
+		if (!filter) {
+			try { filter = JSON.parse(sessionStorage.getItem("auditFilter") || "{}"); } catch { filter = {}; }
+		}
+		if (offset === undefined) offset = Number(sessionStorage.getItem("auditOffset")) || 0;
+		const request = ++auditRequest;
+		const { entries, total } = await api("audit", { ...filter, offset });
+		if (request !== auditRequest || location.hash.slice(1).split("/")[0] !== "audit") return;
+		const page = Math.floor(offset / 100) + 1, pages = Math.max(1, Math.ceil(total / 100));
+		const range = "Showing " + (offset + 1) + "–" + (offset + entries.length) + " of " + total + " entries";
+		const pager = total > 0 ? '<div class="audit-paging"><span class="dim small">' + range + '</span><div class="row"><button class="btn" data-audit-page="prev"' + (offset <= 0 ? " disabled" : "") + '>Previous</button><span class="dim small">Page ' + page + " of " + pages + '</span><button class="btn" data-audit-page="next"' + (offset + entries.length >= total ? " disabled" : "") + '>Next</button></div></div>' : "";
+		main.innerHTML = '<h1>Audit log</h1><div class="bar"><input id="auditWho" aria-label="Filter by target account" placeholder="Target @handle" value="' + esc(filter.target || "") + '">' +
+			'<select id="auditAction" aria-label="Filter by action"><option value="">Every action</option>' + ["automod_strike", "automod_second_chance", "escalate", "expire_sanction", "auto_suspend_name", "temporary_status", "set_status", "bulk_status", "send_staff_message", "revoke_strike", "bulk_strike", "resolve_appeal", "save_automod", "set_role", "set_staff_permissions"]
 				.map((a) => '<option value="' + a + '"' + (filter.action === a ? " selected" : "") + ">" + a.replace(/_/g, " ") + "</option>").join("") + "</select>" +
-			'<label class="row"><input type="checkbox" id="auditAuto"' + (filter.automatic ? " checked" : "") + '> Automatic only</label><button class="btn" id="auditGo">Filter</button></div><div class="scroll">' + (entries.length
-			? '<table class="table"><tr><th>When</th><th>Who</th><th>Did</th><th>To</th><th>Details</th></tr>' +
-				entries.map((e) => '<tr><td class="small dim">' + esc(when(e.created_at)) + "</td><td>" + (e.automatic ? '<span class="pill">automod</span>' : "@" + esc(e.actor ?? "?")) + "</td><td>" + esc(e.action.replace(/_/g, " ")) + "</td><td>" +
-					(e.target_name ? '<a href="#user/' + esc(e.target) + '">@' + esc(e.target_name) + "</a>" : esc(e.target ?? "")) + '</td><td class="small dim code">' + esc(e.detail ? JSON.stringify(e.detail) : "") + "</td></tr>").join("") + "</table>"
-			: '<div class="empty">Nothing yet.</div>') + "</div>";
-		$("#auditGo").onclick = () => RENDER.audit(main, { target: $("#auditWho").value.trim(), action: $("#auditAction").value, automatic: $("#auditAuto").checked });
+			'<label class="row"><input type="checkbox" id="auditAuto"' + (filter.automatic ? " checked" : "") + '> Automatic only</label><span class="dim small" id="auditLoading" hidden>Updating…</span></div>' + pager +
+			(entries.length ? '<div class="audit-list">' + entries.map((e) => {
+				const target = e.target_name ? '<a href="#user/' + esc(e.target) + '">@' + esc(e.target_name) + "</a>" : e.target ? esc(e.target) : "";
+				return '<article class="audit-entry"><div class="audit-entry-heading"><div><h2>' + esc(e.action.replace(/_/g, " ")) + '</h2><span class="dim small">' + esc(when(e.created_at)) + '</span></div><div class="audit-entry-meta">' + (e.automatic ? '<span class="pill">automatic</span>' : '<span class="dim small">by</span> @' + esc(e.actor ?? "?")) + '</div></div>' +
+					'<div class="audit-entry-body">' + (target ? '<div class="audit-entry-target"><span class="dim small">Target</span><div>' + target + '</div></div>' : "") +
+					'<div class="audit-entry-detail"><span class="dim small">Details</span><pre>' + esc(e.detail ? JSON.stringify(e.detail) : "—") + "</pre></div></div></article>";
+			}).join("") + "</div>" : '<div class="empty">No audit entries match these filters.</div>') + pager;
+		let timer;
+		const apply = (delay = 0) => {
+			clearTimeout(timer);
+			const focusedId = document.activeElement?.id;
+			const caret = document.activeElement === $("#auditWho") ? $("#auditWho").selectionStart : null;
+			timer = setTimeout(async () => {
+				const next = { target: $("#auditWho").value.trim(), action: $("#auditAction").value, automatic: $("#auditAuto").checked };
+				sessionStorage.setItem("auditFilter", JSON.stringify(next));
+				sessionStorage.setItem("auditOffset", "0");
+				$("#auditLoading").hidden = false;
+				await RENDER.audit(main, next, 0);
+				if (focusedId && location.hash.slice(1).split("/")[0] === "audit") {
+					const focus = $("#" + focusedId);
+					focus?.focus();
+					if (focus && caret !== null) focus.setSelectionRange(caret, caret);
+				}
+			}, delay);
+		};
+		$("#auditWho").addEventListener("input", () => apply(250));
+		$("#auditAction").addEventListener("change", () => apply());
+		$("#auditAuto").addEventListener("change", () => apply());
+		main.querySelectorAll("[data-audit-page]").forEach((button) => button.onclick = () => {
+			const nextOffset = Math.max(0, offset + (button.dataset.auditPage === "next" ? 100 : -100));
+			sessionStorage.setItem("auditOffset", String(nextOffset));
+			RENDER.audit(main, filter, nextOffset);
+		});
 	},
 };
 
@@ -1564,10 +2029,23 @@ async function refreshCounts() {
 const HOME_SELECT = '<select id="home"><option value="">All instances</option><option value="local">This instance</option><option value="remote">Other instances</option></select>';
 
 function userTable(users, orgs = false, pick = false) {
-	const html = '<table class="table"><tr>' + (pick ? "<th></th>" : "") + "<th>Account</th><th>" + (orgs ? "Affiliates" : "Posts") + "</th><th>Followers</th><th>Joined</th><th>Last sign-in</th></tr>" +
-		users.map((u) => '<tr class="click" data-id="' + esc(u.id) + '">' + (pick ? '<td style="width:32px"><input type="checkbox" data-pick="' + esc(u.id) + '"' + (me.id === u.id ? " disabled" : "") + "></td>" : "") + "<td>" + person(u) + (u.org ? '<div class="dim small">affiliate of @' + esc(u.org) + "</div>" : "") + "</td><td>" + (orgs ? u.affiliates : u.posts) + "</td><td>" + u.followers +
+	const html = '<table class="table' + (orgs ? ' org-table' : '') + '"><tr>' + (pick ? "<th></th>" : "") + "<th>Account</th><th>" + (orgs ? "Affiliates" : "Posts") + "</th><th>Followers</th><th>Joined</th><th>Last sign-in</th></tr>" +
+		users.map((u) => '<tr class="click" data-id="' + esc(u.id) + '"' + (orgs ? ' data-search="' + esc([u.name, u.screen_name, u.id].join(" ").toLocaleLowerCase()) + '"' : '') + '>' + (pick ? '<td style="width:32px"><input type="checkbox" data-pick="' + esc(u.id) + '"' + (me.id === u.id ? " disabled" : "") + "></td>" : "") + "<td>" + person(u) + (u.org ? '<div class="dim small">affiliate of @' + esc(u.org) + "</div>" : "") + "</td><td>" + (orgs ? u.affiliates : u.posts) + "</td><td>" + u.followers +
 			'</td><td class="small dim">' + esc(when(u.created_at)) + '</td><td class="small dim">' + esc(when(u.last_seen_at)) + "</td></tr>").join("") + "</table>";
-	setTimeout(() => document.querySelectorAll("tr.click").forEach((tr) => tr.onclick = (e) => { if (!e.target.closest("td:has([data-pick])")) go("user/" + tr.dataset.id); }));
+	setTimeout(() => document.querySelectorAll("tr.click").forEach((tr) => {
+		const open = (e) => {
+			if (e.target.closest("td:has([data-pick])")) return;
+			const route = "user/" + tr.dataset.id;
+			if (e.ctrlKey || e.metaKey) { e.preventDefault(); openAdminRoute(route); }
+			else go(route);
+		};
+		tr.onclick = (e) => { if (e.button === 0) open(e); };
+		tr.addEventListener("auxclick", (e) => {
+			if (e.button !== 1 || e.target.closest("td:has([data-pick])")) return;
+			e.preventDefault();
+			openAdminRoute("user/" + tr.dataset.id);
+		});
+	}));
 	return html;
 }
 
@@ -1587,18 +2065,14 @@ async function renderUser(main, id) {
 	const self = me && me.id === u.id;
 	const canHere = (what) => !u.instance && can(what);
 	main.innerHTML =
-		'<p><a href="#users">← Users</a></p>' + person(u) +
-		'<p class="dim small">Joined ' + esc(when(u.created_at)) + " · last sign-in " + esc(when(u.last_seen_at)) + " · " + u.posts + " posts · " + u.followers + " followers · " + u.sessions + " active sessions" +
-		(u.invite_code ? " · invite " + '<span class="code">' + esc(u.invite_code) + "</span>" : u.invited_by ? " · invited" : "") + (u.invited_by ? " from @" + esc(u.invited_by) : "") +
-		(u.org ? " · affiliate of @" + esc(u.org) : "") + ' · <a href="/' + esc(u.screen_name) + '" target="_blank">open profile</a>' +
-		// straight to the files, instead of searching the Media page for them
-		(u.avatar_url ? ' · <a href="' + esc(u.avatar_url) + '" target="_blank">profile picture</a>' : "") +
-		(u.banner_url ? ' · <a href="' + esc(u.banner_url) + '" target="_blank">banner</a>' : "") +
-		(can("media") ? ' · <a href="#media/' + esc(u.id) + '">all media</a>' : "") + "</p>" +
-		(u.instance ? '<div class="box" style="margin-bottom:16px">This account lives on <b>' + esc(u.instance) + "</b>, which manages its profile, password and role. Here you can moderate it: suspend it, hide its posts or delete the copy.</div>" : "") +
-		'<div class="grid2">' +
+		'<header class="user-admin-header"><a class="user-admin-back" href="#users">← Back to users</a><div class="user-admin-identity"><img class="user-admin-avatar" src="' + esc(avatar(u)) + '" alt=""><div class="user-admin-title"><h1>' + esc(u.name) + '</h1><div class="user-admin-subtitle">@' + esc(u.screen_name) + standing(u) + '</div></div><a class="btn user-admin-open" href="/' + esc(u.screen_name) + '" target="_blank" rel="noopener">Open profile</a></div>' +
+		'<div class="user-admin-facts"><span>Joined <b>' + esc(when(u.created_at)) + '</b></span><span>Last sign-in <b>' + esc(when(u.last_seen_at)) + '</b></span><span><b>' + u.posts + '</b> posts</span><span><b>' + u.followers + '</b> followers</span><span><b>' + u.sessions + '</b> active ' + (u.sessions === 1 ? 'session' : 'sessions') + '</span>' +
+		(u.invite_code ? '<span>Invite <b class="code">' + esc(u.invite_code) + '</b></span>' : u.invited_by ? '<span>Invited by <b>@' + esc(u.invited_by) + '</b></span>' : "") + (u.org ? '<span>Affiliate of <b>@' + esc(u.org) + '</b></span>' : "") +
+		(u.avatar_url ? '<span><a href="' + esc(u.avatar_url) + '" target="_blank" rel="noopener">Profile picture</a></span>' : "") + (u.banner_url ? '<span><a href="' + esc(u.banner_url) + '" target="_blank" rel="noopener">Banner</a></span>' : "") + (can("media") ? '<span><a href="#media/' + esc(u.id) + '">All media</a></span>' : "") + '</div></header>' +
+		(u.instance ? '<div class="user-instance-note">This account lives on <b>' + esc(u.instance) + "</b>, which manages its profile, password and role. You can suspend it, hide its posts, or delete the local copy here.</div>" : "") +
+		'<div class="user-admin-grid">' +
 		// profile
-		'<div class="box"><h2>Profile</h2>' +
+		'<div class="box user-card-profile"><h2>Profile</h2>' +
 		[["name", "Name", u.name], ["screen_name", "Handle", u.screen_name], ["location", "Location", u.location], ["website", "Website", u.website]]
 			.map(([k, l, v]) => '<div class="field"><label>' + l + '</label><input data-f="' + k + '" value="' + esc(v) + '"' + (canHere("updateUser") ? "" : " disabled") + "></div>").join("") +
 		'<div class="field"><label>Bio</label><textarea data-f="bio"' + (canHere("updateUser") ? "" : " disabled") + ">" + esc(u.bio) + "</textarea></div>" +
@@ -1609,7 +2083,7 @@ async function renderUser(main, id) {
 			["followers", "following"].map((k) => '<label class="small" style="flex:1">' + k + '<input data-count="' + k + '" type="number" min="0" value="' + ((u.count_overrides || {})[k] ?? "") + '"></label>').join("") +
 			'</div><button class="btn" id="saveCounts" style="margin-top:8px">Save counts</button>' : "") + "</div>" +
 		// badges
-		'<div class="box"><h2>Badge and flag</h2><div class="field"><label>Verification badge</label><select id="badge"' + (can("setBadge") ? "" : " disabled") + ">" +
+		'<div class="box user-card-identity"><h2>Identity and badges</h2><div class="field"><label>Verification badge</label><select id="badge"' + (can("setBadge") ? "" : " disabled") + ">" +
 		[["", "none"], ["blue", "blue"], ["business", "gold (organisation)"], ["government", "grey (government organisation)"], ["government_individual", "grey (government official)"]].map(([v, l]) => '<option value="' + v + '"' + ((u.verified_type ?? "") === v ? " selected" : "") + ">" + l + "</option>").join("") +
 		'</select></div><div class="field"><label>Translator badge (a globe after the verification badge)</label><select id="translator"' + (canHere("setTranslator") ? "" : " disabled") + ">" +
 		[["", "none"], ["translator", "blue (translator)"], ["moderator", "gold (translator moderator)"], ["approver", "yellow (approver)"]].map(([v, l]) => '<option value="' + v + '"' + ((u.translator ?? "") === v ? " selected" : "") + ">" + l + "</option>").join("") +
@@ -1633,7 +2107,7 @@ async function renderUser(main, id) {
 		('<div class="field"><label>Badge its affiliates wear</label><select id="orgBadge"' + (can("setOrgBadge") ? "" : " disabled") + ">" + badgeOptions(u.org_badge_id, "its profile picture") + "</select></div>") +
 		"</div>" +
 		// standing
-		'<div class="box"><h2>Standing</h2><p class="dim small">Now: <b>' + esc(u.status) + "</b>" + (u.status_until ? " until " + esc(when(u.status_until)) : "") + "</p>" +
+		'<div class="box user-card-standing"><h2>Standing</h2><p class="dim small">Now: <b>' + esc(u.status) + "</b>" + (u.status_until ? " until " + esc(when(u.status_until)) : "") + "</p>" +
 		'<p class="dim small">Active strikes: <b>' + strikes + "</b>. The next strike " + (next_step < 0 ? "suspends for good" : next_step > 0 ? "suspends for " + next_step + " hours" : "is a warning") + ".</p>" +
 		'<div class="field"><label>Reason (kept in the audit log)</label><input id="reason" placeholder="optional"></div>' +
 		'<div class="field"><label>For</label><select id="for"' + (!can("setTemporaryStatus") || self ? " disabled" : "") + '><option value="">until lifted</option><option value="1">1 hour</option><option value="24">1 day</option><option value="168">1 week</option><option value="720">30 days</option></select></div><div class="row">' +
@@ -1641,7 +2115,7 @@ async function renderUser(main, id) {
 			.map(([s, l, t]) => '<button class="btn' + (s === "suspended" ? " danger" : "") + '" data-status="' + s + '" title="' + esc(t) + '"' + (u.status === s || !can("setStatus") || self ? " disabled" : "") + ">" + l + "</button>").join("") +
 		'</div><p class="dim small">Restrict: can read, can\'t post. Limit: only followers see their posts. Suspend: signed out and hidden everywhere.</p></div>' +
 		// access
-		'<div class="box"><h2>Access</h2><div class="row">' + (canHere("resetPassword") ? '<button class="btn" id="reset">Reset password</button>' : "") + (canHere("signOut") ? '<button class="btn" id="signout">Sign out everywhere</button>' : "") +
+		'<div class="box user-card-access"><h2>Access</h2><div class="row">' + (canHere("resetPassword") ? '<button class="btn" id="reset">Reset password</button>' : "") + (canHere("signOut") ? '<button class="btn" id="signout">Sign out everywhere</button>' : "") +
 			(canHere("revokeApiTokens") ? '<button class="btn danger" id="revoketokens"' + (u.api_tokens ? "" : " disabled") + ">Revoke API tokens (" + u.api_tokens + ")</button>" : "") + '</div><div id="secret"></div>' +
 		'<label class="row" style="margin-top:14px"><input type="checkbox" id="notes-access"' + (u.notes_writer ? " checked" : "") + (canHere("setNotesAccess") ? "" : " disabled") + '>Community Notes writing access</label>' +
 		'<label class="row" style="margin-top:8px"><input type="checkbox" id="never-sensitive"' + (u.never_sensitive ? " checked" : "") + (can("setNeverSensitive") ? "" : " disabled") + '>Never mark their posts as sensitive</label>' +
@@ -1649,29 +2123,41 @@ async function renderUser(main, id) {
 		(can("deleteUser") && !self ? '<div class="field" style="margin-top:14px"><label>Delete account (type @' + esc(u.screen_name) + ' to confirm)</label><div class="row"><input id="confirm" placeholder="' + esc(u.screen_name) + '"><button class="btn danger" id="delete">Delete forever</button></div></div>' : "") +
 		"</div>" +
 		// messages, private notes, sessions
-		'<div class="box"><h2>Messages to the account</h2><p class="dim small">' + (u.instance ? "It can't read messages from here. Its own instance's staff can message it." : "They arrive in its notifications. A warning or strike can be appealed.") + "</p>" +
+		'<div class="box user-card-messages"><h2>Messages to the account</h2><p class="dim small">' + (u.instance ? "It can't read messages from here. Its own instance's staff can message it." : "They arrive in its notifications. A warning or strike can be appealed.") + "</p>" +
 		(messages.length ? '<div class="list" style="margin-bottom:12px">' + messages.map((m) => '<p><span class="pill' + (m.kind === "strike" ? " suspended" : m.kind === "warning" ? " restricted" : "") + '">' + esc(m.kind) + "</span> " +
 			(m.revoked_at ? '<s class="dim">' + esc(m.body) + "</s>" : esc(m.body)) + '<br><span class="dim small">' + (m.actor ? "@" + esc(m.actor) + " · " : "") + esc(when(m.created_at)) + (m.read_at ? " · read" : "") + (m.revoked_at ? " · withdrawn" : "") + "</span>" +
 			(m.kind === "strike" && !m.revoked_at && can("revokeStrike") ? ' <button class="btn" data-unstrike="' + esc(m.id) + '">Withdraw</button>' : "") + "</p>").join("") + "</div>" : "") +
 		(canHere("sendStaffMessage") && !self ? '<div class="field"><select id="msgKind"><option value="message">Message</option><option value="warning">Warning</option><option value="strike">Strike</option></select></div>' +
 			'<div class="field"><textarea id="msgBody" maxlength="2000" placeholder="What they\'ll read"></textarea></div><label class="row" style="margin:6px 0"><input type="checkbox" id="msgEscalate" checked> A strike counts toward suspension</label><button class="btn primary" id="send">Send</button>' : "") + "</div>" +
-		'<div class="box"><h2>Staff notes</h2><p class="dim small">Only staff see these.</p>' +
+		'<div class="box user-card-notes"><h2>Staff notes</h2><p class="dim small">Only staff see these.</p>' +
 		(notes.length ? '<div class="list" style="margin-bottom:12px">' + notes.map((n) => '<p style="white-space:pre-wrap">' + esc(n.body) + '<br><span class="dim small">@' + esc(n.actor ?? "?") + " · " + esc(when(n.created_at)) + "</span></p>").join("") + "</div>" : "") +
 		(can("addStaffNote") ? '<div class="field"><textarea id="noteBody" maxlength="2000" placeholder="Context for other staff"></textarea></div><button class="btn primary" id="addNote">Add note</button>' : "") + "</div>" +
-		(handles.length ? '<div class="box"><h2>Handle history</h2><div class="list">' + handles.map((h) => "<p>@" + esc(h.old_name) + " → @" + esc(h.new_name) + ' <span class="dim small">' + esc(when(h.changed_at)) + "</span></p>").join("") + "</div></div>" : "") +
-		'<div class="box"><h2>Sessions</h2>' + (sessions === null ? '<p class="dim small">Hidden: this account is staff at your level or above.</p>'
+		(handles.length ? '<div class="box user-card-handles"><h2>Handle history</h2><div class="list">' + handles.map((h) => "<p>@" + esc(h.old_name) + " → @" + esc(h.new_name) + ' <span class="dim small">' + esc(when(h.changed_at)) + "</span></p>").join("") + "</div></div>" : "") +
+		'<div class="box user-card-sessions"><h2>Sessions</h2>' + (sessions === null ? '<p class="dim small">Hidden: this account is staff at your level or above.</p>'
 			: sessions.length ? '<div class="list">' + sessions.slice(0, 10).map((s) => "<p>" + esc(browser(s.user_agent)) + (s.current ? ' <span class="pill staff">you, now</span>' : "") +
 				'<br><span class="dim small">' + (s.ip ? esc(s.ip) + " · " : "") + "signed in " + esc(when(s.created_at)) + " · last active " + esc(when(s.last_seen_at)) + "</span>" +
 				(s.current || !can("revokeSession") ? "" : ' <button class="btn" data-session="' + esc(s.id) + '">Sign out</button>') + "</p>").join("") +
 				(sessions.length > 10 ? '<p class="dim small">and ' + (sessions.length - 10) + ' older (Access → Sign out everywhere ends them all)</p>' : "") + "</div>"
 			: '<p class="dim small">Not signed in anywhere.</p>') + "</div>" +
-		"</div>" +
-		// organisation
-		('<h2>Affiliates</h2>' + (canHere("addAffiliate") ? '<div class="bar"><input id="aff" placeholder="@handle to add"><button class="btn primary" id="addaff">Add affiliate</button></div>' : "") +
-			(affiliates.length ? '<div class="scroll"><table class="table">' + affiliates.map((a) => '<tr><td>' + person(a) + "</td><td>" + (can("removeAffiliate") ? '<button class="btn danger" data-unaff="' + esc(a.id) + '">Remove</button>' : "") + "</td></tr>").join("") + "</table></div>" : '<div class="empty">No affiliates yet.</div>')) +
-		(alts?.length ? '<h2>Seen from the same addresses</h2><p class="dim small">Accounts that signed in from an address this one used in the last 90 days. Shared networks put strangers here too.</p><p>' + alts.map((a) => '<a href="#user/' + esc(a.id) + '">@' + esc(a.screen_name) + "</a>" + (a.status !== "active" ? ' <span class="pill ' + esc(a.status) + '">' + esc(a.status) + "</span>" : "")).join(", ") + "</p>" : "") +
-		(invited.length ? "<h2>Invited</h2><p>" + invited.map((i) => '<a href="#user/' + esc(i.id) + '">@' + esc(i.screen_name) + "</a>").join(", ") + "</p>" : "") +
-		"<h2>History</h2>" + (log.length ? '<table class="table">' + log.map((e) => '<tr><td class="small dim">' + esc(when(e.created_at)) + "</td><td>" + (e.automatic ? "automod" : "@" + esc(e.actor ?? "?")) + " " + esc(e.action.replace(/_/g, " ")) + '</td><td class="small dim code">' + esc(e.detail ? JSON.stringify(e.detail) : "") + "</td></tr>").join("") + "</table>" : '<div class="empty">No staff actions yet.</div>');
+		"</div><div class=\"user-related-grid\">" +
+		'<section class="box user-affiliates"><h2>Affiliates</h2>' + (canHere("addAffiliate") ? '<div class="bar"><input id="aff" placeholder="@handle to add"><button class="btn primary" id="addaff">Add affiliate</button></div>' : "") +
+			(affiliates.length ? '<div class="scroll"><table class="table">' + affiliates.map((a) => '<tr><td>' + person(a) + "</td><td>" + (can("removeAffiliate") ? '<button class="btn danger" data-unaff="' + esc(a.id) + '">Remove</button>' : "") + "</td></tr>").join("") + "</table></div>" : '<p class="dim small">No affiliates yet.</p>') + "</section>" +
+		(alts?.length ? '<section class="box"><h2>Seen from the same addresses</h2><p class="dim small">Accounts that signed in from an address this one used in the last 90 days. Shared networks may put strangers here too.</p><div class="user-related-links">' + alts.map((a) => '<a href="#user/' + esc(a.id) + '">@' + esc(a.screen_name) + "</a>" + (a.status !== "active" ? ' <span class="pill ' + esc(a.status) + '">' + esc(a.status) + "</span>" : "")).join("") + "</div></section>" : "") +
+		(invited.length ? '<section class="box"><h2>Invited accounts</h2><div class="user-related-links">' + invited.map((i) => '<a href="#user/' + esc(i.id) + '">@' + esc(i.screen_name) + "</a>").join("") + "</div></section>" : "") +
+		'<section class="box user-history"><h2>Staff history</h2>' + (log.length ? '<div class="scroll"><table class="table"><tbody>' + log.map((e) => '<tr><td class="small dim">' + esc(when(e.created_at)) + "</td><td>" + (e.automatic ? "Automod" : "@" + esc(e.actor ?? "?")) + " " + esc(e.action.replace(/_/g, " ")) + '</td><td class="small dim code">' + esc(e.detail ? JSON.stringify(e.detail) : "") + "</td></tr>").join("") + "</tbody></table></div>" : '<p class="dim small">No staff actions yet.</p>') + "</section></div>";
+
+	const userGrid = main.querySelector(".user-admin-grid");
+	const userColumns = [document.createElement("div"), document.createElement("div")];
+	userColumns.forEach((column) => column.className = "user-admin-column");
+	const moveCards = (column, selectors) => selectors.forEach((selector) => {
+		const card = main.querySelector(selector);
+		if (card) column.append(card);
+	});
+	moveCards(userColumns[0], [".user-card-profile", ".user-card-standing", ".user-affiliates", ".user-card-messages"]);
+	moveCards(userColumns[1], [".user-card-identity", ".user-history", ".user-card-access", ".user-card-notes", ".user-card-sessions", ".user-card-handles"]);
+	userGrid.replaceChildren(...userColumns);
+	const relatedGrid = main.querySelector(".user-related-grid");
+	if (!relatedGrid.children.length) relatedGrid.remove();
 
 	const again = () => renderUser(main, id);
 	if ($("#saveCounts")) $("#saveCounts").onclick = () => act(() => api("setUserCounts", { id, counts: Object.fromEntries([...main.querySelectorAll("[data-count]")].map((el) => [el.dataset.count, el.value])) }), "Counts saved").then(again);
@@ -1771,10 +2257,17 @@ async function renderUser(main, id) {
 		(me.superadmin_home ? '<button onclick="location.href=\'/federation/superadmin\'"><span class="icon">shield_person</span>Superadmin</button>' : "") +
 		'<button onclick="location.href=\'/home\'"><span class="icon">arrow_back</span>Back to {{instance}}</button>' +
 		'<div class="who">@' + esc(me.screen_name) + " · " + esc(me.superadmin ? "superadmin" : me.role) + "</div></div>");
-	document.querySelectorAll("nav [data-page]").forEach((b) => b.onclick = () => go(b.dataset.page));
+	document.querySelectorAll("nav [data-page]").forEach((b) => {
+		b.onclick = (e) => {
+			if (e.ctrlKey || e.metaKey) { e.preventDefault(); openAdminRoute(b.dataset.page); }
+			else if (e.button === 0) go(b.dataset.page);
+		};
+		b.addEventListener("auxclick", (e) => { if (e.button === 1) { e.preventDefault(); openAdminRoute(b.dataset.page); } });
+	});
 	document.querySelectorAll("nav .ghead").forEach((h) => h.onclick = () => {
 		const g = h.parentNode, on = !g.classList.contains("open");
-		document.querySelectorAll("nav .group").forEach((x) => openGroup(x, on && x === g));
+		if (on) openNavGroups.add(g); else openNavGroups.delete(g);
+		openGroup(g, on);
 	});
 	refreshCounts();
 	route();

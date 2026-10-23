@@ -281,14 +281,18 @@ export const TIDY_SCRIPT = `(function(){
 		var leaf=[].find.call(h.querySelectorAll("span"),function(s){return !s.childElementCount&&s.firstChild&&s.firstChild.nodeType===3});
 		if(leaf&&leaf.firstChild.nodeValue!==name)leaf.firstChild.nodeValue=name;
 	}
-	var since=0;
+	var since=0,paneObserver=null,paneFitFrame=0;
+	function stopPaneFit(){
+		if(paneObserver){paneObserver.disconnect();paneObserver=null}
+		if(paneFitFrame){cancelAnimationFrame(paneFitFrame);paneFitFrame=0}
+	}
 	function pane(){
 		var p=location.pathname,f=document.getElementById("xitter-pane"),base=framed(p);
 		document.documentElement.toggleAttribute("data-xitter-full",!!(base&&fullOf(p)&&f&&f.hasAttribute("data-col")));
-		if(!base){if(f)f.remove();since=0;return}
+		if(!base){if(f){stopPaneFit();f.remove()}since=0;return}
 		var want=base+location.search;
 		var err=document.querySelector('[data-testid="error-detail"]');
-		if(f&&f.getAttribute("data-src")!==want){f.setAttribute("data-src",want);f.contentWindow.location.replace(want)}
+		if(f&&f.getAttribute("data-src")!==want){stopPaneFit();f.setAttribute("data-src",want);f.contentWindow.location.replace(want)}
 		if(f&&f.title&&document.title!==f.title)document.title=f.title;
 		if(f)heading(f);
 		// should the client draw no not-found page on a side bar path, the frame
@@ -301,17 +305,18 @@ export const TIDY_SCRIPT = `(function(){
 		if(!err&&!col)return;
 		if(err)err.style.display="none";
 		if(f&&(err?f.parentNode===err.parentNode:f.hasAttribute("data-col")))return;
-		if(f)f.remove();
+		if(f){stopPaneFit();f.remove()}
 		f=document.createElement("iframe");
 		f.id="xitter-pane";f.src=want;f.setAttribute("data-src",want);
 		f.style.cssText="display:block;width:100%;height:100vh;border:0;background:transparent";
 		f.addEventListener("load",function(){
+			stopPaneFit();
 			var w=f.contentWindow,d;
 			try{d=f.contentDocument}catch(e){}
 			if(!d||!d.body)return;
 			var at=w.location.pathname+w.location.search;
 			// a form sent inside the frame can land outside our pages
-			if(w.location.pathname.indexOf("/account/")!==0){f.remove();go(at,true);return}
+			if(w.location.pathname.indexOf("/account/")!==0){stopPaneFit();f.remove();go(at,true);return}
 			// a look saved on the theme page only reaches the client on a fresh load
 			if(w.location.pathname==="/account/theme"&&f.getAttribute("data-was")==="/account/theme"){location.reload();return}
 			f.setAttribute("data-was",w.location.pathname);
@@ -322,10 +327,21 @@ export const TIDY_SCRIPT = `(function(){
 			f.title=f.getAttribute("data-name")+" / "+T.instance;
 			document.title=f.title;
 			heading(f);
-			// the body, as the document is never shorter than the frame itself
-			var fit=function(){f.style.height=Math.ceil(d.body.getBoundingClientRect().height)+"px"};
+			// Resize the frame on the next animation frame, outside the observer
+			// delivery cycle. Ignore detached frames and identical measurements.
+			var fitPending=false;
+			var fit=function(){
+				paneFitFrame=0;fitPending=false;
+				if(!document.documentElement.contains(f)||!d.body)return;
+				var height=Math.ceil(d.body.getBoundingClientRect().height)+"px";
+				if(f.style.height!==height)f.style.height=height;
+			};
+			var scheduleFit=function(){
+				if(fitPending||!document.documentElement.contains(f))return;
+				fitPending=true;paneFitFrame=requestAnimationFrame(fit);
+			};
 			fit();
-			if(window.ResizeObserver)new ResizeObserver(fit).observe(d.body);
+			if(window.ResizeObserver){paneObserver=new ResizeObserver(scheduleFit);paneObserver.observe(d.body)}
 		});
 		if(err)err.parentNode.insertBefore(f,err);
 		else{f.setAttribute("data-col","");col.insertBefore(f,col.firstChild);document.documentElement.setAttribute("data-xitter-full","")}
