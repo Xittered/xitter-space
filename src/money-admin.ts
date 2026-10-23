@@ -4,7 +4,7 @@
 
 import { AdminError, type Action, audit, idOf } from "./admin";
 import { sql } from "./db";
-import { MoneyError, adjust, formatCents, parseAmount } from "./money";
+import { MoneyError, accountFor, adjust, formatCents, parseAmount, unannouncePayment } from "./money";
 import { feature, setSetting, settings } from "./settings";
 import { allows } from "./staff-permissions";
 
@@ -53,10 +53,15 @@ export const moneyActions: Record<string, Action> = {
 	saveMoney: {
 		role: "admin",
 		run: async (a, b) => {
+			// the payments feed: an account here, or none
+			const feedHandle = String(b.feed ?? "").trim().replace(/^@/, "");
+			const feed = feedHandle ? await accountFor(feedHandle) : null;
+			if (feedHandle && !feed) throw new AdminError(`There's no account here called @${feedHandle} to post the payments.`);
 			const next = {
 				starting_cents: cents(b.starting, "The starting balance", 0, 100_000_000),
 				max_transfer_cents: cents(b.max_transfer, "The most one payment moves", 1, 10_000_000_000),
 				like_cents: cents(b.like, "The like reward", 0, 100_000),
+				feed: feed?.screen_name ?? "",
 			};
 			await setSetting("money", next);
 			await audit(a, "money_settings", null, next);
@@ -100,6 +105,8 @@ export const moneyActions: Record<string, Action> = {
 						and q.payer_id is not null and q.status = 'paid'
 						and not exists (select 1 from money_transfers t where t.request_id = q.id and t.reversed_at is null)`;
 				await audit(a, "money_reverse", id, { amount, from: t.recipient_id, to: t.sender_id });
+			}).then(async () => {
+				await unannouncePayment(id);
 				return {};
 			});
 		},

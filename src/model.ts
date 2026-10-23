@@ -505,6 +505,16 @@ function noticePivot(n: { type: string; text: string; url?: string }) {
 	};
 }
 
+// A money card's link closing the text is the card's own, as X does with a
+// card's link: the shown text stops before it and the space before it
+// (money.ts), so the post doesn't end in a blank line over its card.
+function shownUpTo(p: PostRow, shown: string, textLength: number) {
+	const link = (p.linkCard as { rest_id?: unknown } | undefined)?.rest_id;
+	if (typeof link !== "string" || !link.includes("/i/xmoney/")) return textLength;
+	const kept = shown.trimEnd();
+	return kept.endsWith(link) ? [...kept.slice(0, kept.length - link.length).trimEnd()].length : textLength;
+}
+
 function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> {
 	// a long post: timelines get its start and "Show more", the post page the
 	// whole text (note_tweet), with entities for each
@@ -553,7 +563,7 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 			bookmarked: p.bookmarked,
 			conversation_id_str: p.conversation_id,
 			created_at: apiDate(p.created_at),
-			display_text_range: [0, textLength],
+			display_text_range: [0, shownUpTo(p, shown, textLength)],
 			entities: {
 				...(media.length ? { media } : {}),
 				...(mentions.length ? { user_mentions: mentions } : {}),

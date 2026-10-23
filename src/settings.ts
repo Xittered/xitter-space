@@ -98,7 +98,8 @@ const DEFAULTS = {
 	archive_import: { min_age_days: 7, approval: true },
 	// money.ts: what a new wallet holds and the most one transfer moves, in cents
 	// like_cents: what a post's author earns for each like (once per post and account)
-	money: { starting_cents: 500, max_transfer_cents: 100_000, like_cents: 50 },
+	// feed: the handle of a local account that posts every payment ("" for none)
+	money: { starting_cents: 500, max_transfer_cents: 100_000, like_cents: 50, feed: "" },
 	// the client's own feature switches, set by an admin (Admin > Feature
 	// switches); they win over the build's values and Xitter's own (shell.ts)
 	switch_overrides: {} as Record<string, unknown>,

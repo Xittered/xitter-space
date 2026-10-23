@@ -48,13 +48,12 @@ img.xm-sq{border-radius:8px!important}
 
 export const MONEY_UI_CSS = `${CARD_CSS}
 [data-xm-hidden]{display:none!important}
-[data-xm-link]{font-size:0!important;line-height:0!important}
 [data-xm-compose]{position:relative;margin:4px 0 8px}
 [data-xm-compose] .xm-card{margin-top:0;cursor:default}
 [data-xm-compose] .xm-card:hover{background:none}
 .xm-remove{position:absolute;top:8px;right:8px;z-index:1;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:rgb(15 20 25 / .75);color:#fff;font:20px/1 -apple-system,"Segoe UI",sans-serif;cursor:pointer;backdrop-filter:blur(4px)}
 .xm-remove:hover{background:rgb(39 44 48 / .75)}
-[data-xm-compose] .xm-req{padding-right:56px}
+[data-xm-compose] .xm-card:not(.xm-shop){padding-right:56px}
 [data-xm-compose] .xm-req .xm-pay{pointer-events:none}
 #xitter-pay{position:fixed;z-index:10000;width:360px;max-width:calc(100vw - 16px);max-height:min(440px,calc(100vh - 16px));display:flex;flex-direction:column;border-radius:16px;overflow:hidden;font-family:TwitterChirp,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:15px;box-shadow:rgba(101,119,134,.2) 0 0 15px,rgba(101,119,134,.15) 0 0 3px 1px}
 #xitter-pay .xp-head{padding:12px 16px;font-weight:800;font-size:17px;border-bottom:1px solid color-mix(in srgb,currentColor 15%,transparent)}
@@ -226,40 +225,59 @@ export const MONEY_UI_SCRIPT = `(function(){
 	}
 
 	// The composer: a payment's or request's link in the post being written
-	// shows as its card under the text, as the post will, with the link itself
-	// out of sight; the card's × takes the link out of the post.
+	// leaves the text and becomes the post's card, shown under the text as the
+	// post will show it. When the post goes (or is scheduled, or saved as a
+	// draft) the link goes back at the end of its text. With nothing else in
+	// the text, an invisible character keeps the Post button on; it never
+	// leaves. The card's × takes the payment off the post.
 	var me="";
 	try{var S=window.__INITIAL_STATE__;me=S.entities.users.entities[S.session.user_id].screen_name.toLowerCase()}catch(e){}
+	var ZW="\\u200b";
 	function linkIn(text){
 		var base=location.origin+"/i/xmoney/",at=text.indexOf(base);
 		var m=at<0?null:/^[pr]\\/\\d{1,19}/.exec(text.slice(at+base.length));
 		return m?base+m[0]:null;
 	}
-	// the smallest element holding the link and nothing else, if the editor gives it one
-	function linkNode(editor,url){
-		return [].find.call(editor.querySelectorAll("span"),function(n){return n.textContent===url&&!(n.firstElementChild&&n.firstElementChild.textContent===url)});
-	}
-	function drop(editor,url){
-		var n=linkNode(editor,url);
-		if(!n)return;
-		editor.focus();
-		var range=document.createRange();range.selectNodeContents(n);
+	function plain(t){return String(t||"").split(ZW).join("").replace(/\\s+/g," ").trim()}
+	// selects the text inside the editor, across the editor's own spans
+	function select(editor,text){
+		var walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),nodes=[],all="",n;
+		while((n=walk.nextNode())){nodes.push([n,all.length]);all+=n.nodeValue}
+		var at=all.indexOf(text);
+		if(at<0)return false;
+		function spot(i){for(var k=nodes.length-1;k>=0;k--)if(nodes[k][1]<=i)return [nodes[k][0],i-nodes[k][1]]}
+		var a=spot(at),b=spot(at+text.length);
+		var range=document.createRange();range.setStart(a[0],a[1]);range.setEnd(b[0],b[1]);
 		var sel=getSelection();sel.removeAllRanges();sel.addRange(range);
+		return true;
+	}
+	var attached=[];
+	function attachmentOf(editor){return attached.find(function(a){return a.editor===editor})}
+	function take(editor,url){
+		editor.focus();
+		if(!select(editor,url))return;
 		document.execCommand("delete");
+		var a=attachmentOf(editor);
+		if(a){a.url=url;a.key=keyOf(url)}else attached.push({editor:editor,url:url,key:keyOf(url)});
+		setTimeout(function(){if(!plain(editor.textContent))document.execCommand("insertText",false,ZW)},0);
+	}
+	function untake(editor){
+		attached=attached.filter(function(a){return a.editor!==editor});
+		if(!plain(editor.textContent)&&select(editor,ZW))document.execCommand("delete");
 	}
 	function composers(){
+		attached=attached.filter(function(a){return a.editor.isConnected});
 		document.querySelectorAll('[contenteditable="true"][data-testid^="tweetTextarea_"]').forEach(function(editor){
 			var root=editor;
 			while(root.parentElement&&!root.parentElement.querySelector('[data-testid="toolBar"]'))root=root.parentElement;
 			var shown=root.parentElement&&[].find.call(root.parentElement.children,function(c){return c.hasAttribute("data-xm-compose")});
-			var url=linkIn(editor.textContent||""),key=url&&keyOf(url);
-			[].forEach.call(editor.querySelectorAll("[data-xm-link]"),function(n){if(n.textContent!==url){n.removeAttribute("data-xm-link")}});
+			var url=linkIn(editor.textContent||"");
+			if(url&&keyOf(url))take(editor,url);
+			var a=attachmentOf(editor),key=a&&a.key;
 			if(!key||!root.parentElement){if(shown)shown.remove();return}
 			var ck=key+"|"+me+"|preview";
 			if(cache[ck]===undefined){fetchCards(me,[key],true);return}
-			if(!cache[ck]){if(shown)shown.remove();return}
-			var n=linkNode(editor,url);
-			if(n&&!n.hasAttribute("data-xm-link"))n.setAttribute("data-xm-link","");
+			if(!cache[ck]){if(shown)shown.remove();untake(editor);return}
 			if(shown&&shown.getAttribute("data-xm-compose")===key)return;
 			if(shown)shown.remove();
 			var box=document.createElement("div");
@@ -267,14 +285,40 @@ export const MONEY_UI_SCRIPT = `(function(){
 			box.style.setProperty("--xm-bg",bg());box.style.setProperty("--xm-fg",getComputedStyle(document.body).color);
 			box.innerHTML=cache[ck];
 			// a mockup: nothing in it opens or pays while writing
-			[].forEach.call(box.querySelectorAll("[data-xm-go]"),function(a){a.removeAttribute("data-xm-go");a.removeAttribute("href");a.removeAttribute("tabindex")});
+			[].forEach.call(box.querySelectorAll("[data-xm-go]"),function(x){x.removeAttribute("data-xm-go");x.removeAttribute("href");x.removeAttribute("tabindex")});
 			var x=document.createElement("button");
-			x.type="button";x.className="xm-remove";x.setAttribute("aria-label","Remove");x.textContent="\u00d7";
-			x.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();drop(editor,url);box.remove()});
+			x.type="button";x.className="xm-remove";x.setAttribute("aria-label","Remove payment");x.textContent="\\u00d7";
+			x.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();untake(editor);box.remove()});
 			box.appendChild(x);
 			root.parentNode.insertBefore(box,root.nextSibling);
 		});
 	}
+	// the post on its way: its link back at the end of its text, the invisible character out
+	var POSTING=/\\/graphql\\/[^/]+\\/(CreateTweet|CreateNoteTweet|CreateScheduledTweet|EditScheduledTweet|CreateDraftTweet|EditDraftTweet)(?:\\?|$)/;
+	function withLink(url,body){
+		if(typeof body!=="string"||!POSTING.test(String(url)))return body;
+		try{
+			var b=JSON.parse(body),v=b.variables||{};
+			var holder=typeof v.tweet_text==="string"?v:v.post_tweet_request&&typeof v.post_tweet_request.status==="string"?v.post_tweet_request:null;
+			if(!holder)return body;
+			var field=holder===v?"tweet_text":"status",text=holder[field];
+			var live=attached.filter(function(a){return a.editor.isConnected});
+			var a=live.length===1?live[0]:live.find(function(x){return plain(x.editor.textContent)===plain(text)});
+			text=text.split(ZW).join("");
+			if(a&&text.indexOf(a.url)<0)text=text.replace(/\\s+$/,"")?text.replace(/\\s+$/,"")+" "+a.url:a.url;
+			if(text===holder[field])return body;
+			holder[field]=text;
+			return JSON.stringify(b);
+		}catch(e){return body}
+	}
+	var send=window.fetch;
+	window.fetch=function(input,init){
+		if(on&&init&&typeof init.body==="string")init=Object.assign({},init,{body:withLink(typeof input==="string"?input:input&&input.url,init.body)});
+		return send.call(this,input,init);
+	};
+	var xopen=XMLHttpRequest.prototype.open,xsend=XMLHttpRequest.prototype.send;
+	XMLHttpRequest.prototype.open=function(method,url){this.__xmUrl=url;return xopen.apply(this,arguments)};
+	XMLHttpRequest.prototype.send=function(body){return xsend.call(this,on?withLink(this.__xmUrl,body):body)};
 
 	var timer;
 	function run(){timer=null;cards();if(on){pending();composers();buttons()}}

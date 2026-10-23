@@ -359,7 +359,9 @@ ${
 <div class="field"><input id="note" name="note" maxlength="${NOTE_MAX}" placeholder=" " value="${esc(note)}"><label for="note">What's it for?</label></div>
 <label class="check">Share it in a post<input type="checkbox" name="share" value="1"></label>
 <button type="submit" class="pill primary wide">${q ? "Pay" : "Send"}</button>
-<p class="fine">Instant and free. ${esc(settings().instance_name)} Money has no cash value.</p>
+<p class="fine">Instant and free. ${esc(settings().instance_name)} Money has no cash value.${
+	settings().money.feed ? ` Payments are posted publicly by <a href="/${esc(settings().money.feed)}">@${esc(settings().money.feed)}</a>, without your note.` : ""
+}</p>
 </form>`,
 		status,
 	);

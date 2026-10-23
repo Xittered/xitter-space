@@ -987,7 +987,8 @@ const RENDER = {
 			'<div class="field"><label>Starting balance of a new wallet ($)</label><input id="ms" inputmode="decimal" value="' + esc(dollars(m.settings.starting_cents)) + '"' + (admin ? "" : " disabled") + "></div>" +
 			'<div class="field"><label>Most one payment or request moves ($)</label><input id="mx" inputmode="decimal" value="' + esc(dollars(m.settings.max_transfer_cents)) + '"' + (admin ? "" : " disabled") + "></div>" +
 			'<div class="field"><label>Paid to a post\'s author for each like ($, 0 for none)</label><input id="ml" inputmode="decimal" value="' + esc(dollars(m.settings.like_cents)) + '"' + (admin ? "" : " disabled") + "></div>" +
-			'<p class="dim small">A new starting balance applies to wallets made from now on. Likes pay once per post and account.</p>' +
+			'<div class="field"><label>Post every payment from (@account, empty for none)</label><input id="mf" placeholder="@economy" value="' + esc(m.settings.feed ? "@" + m.settings.feed : "") + '"' + (admin ? "" : " disabled") + "></div>" +
+			'<p class="dim small">A new starting balance applies to wallets made from now on. Likes pay once per post and account. The payments feed posts each payment\'s card, without its note, from that account; reversing a payment takes its post down. People are told on the Send screen.</p>' +
 			(admin ? '<button class="btn primary" id="msave">Save</button>' : "") + "</div>" +
 			'<div class="box"><h2>Adjust a balance</h2><p class="dim small">Adds money, or takes it away with a minus (never below $0.00).</p>' +
 			'<div class="field"><label>Account</label><input id="mah" placeholder="@username"' + (admin ? "" : " disabled") + "></div>" +
@@ -1002,7 +1003,7 @@ const RENDER = {
 						(r.reversed_at ? '<span class="pill suspended">reversed</span>' : admin ? '<button class="btn danger" data-rev="' + esc(r.id) + '">Reverse</button>' : "") + "</td></tr>").join("") + "</table>"
 				: '<div class="empty">No payments' + (q ? " for @" + esc(q) : "") + ".</div>") + "</div>";
 		const again = () => this.money(main, $("#mq").value);
-		if ($("#msave")) $("#msave").onclick = () => act(() => api("saveMoney", { starting: $("#ms").value, max_transfer: $("#mx").value, like: $("#ml").value }), "Money settings saved").then(again);
+		if ($("#msave")) $("#msave").onclick = () => act(() => api("saveMoney", { starting: $("#ms").value, max_transfer: $("#mx").value, like: $("#ml").value, feed: $("#mf").value }), "Money settings saved").then(again);
 		if ($("#madj")) $("#madj").onclick = () => act(async () => { const r = await api("adjustMoney", { handle: $("#mah").value, amount: $("#maa").value }); notice("@" + r.to + " now has " + usd(r.balance)); }).then(again);
 		$("#mqs").onclick = again;
 		$("#mq").onkeydown = (e) => { if (e.key === "Enter") again(); };

@@ -102,7 +102,7 @@ export async function sendMoney(senderId: string, handle: string, amountCents: n
 	if (!to) throw new MoneyError("There's no account here with that username.");
 	if (to.id === senderId) throw new MoneyError("You can't send money to yourself.");
 	if (await isBlockedEitherWay(senderId, to.id)) throw new MoneyError(`You can't send money to @${to.screen_name}.`);
-	return sql.begin(async (tx) => {
+	const sent = await sql.begin(async (tx) => {
 		const [done] = await tx`select id from money_transfers where sender_id = ${senderId}::bigint and idem = ${idem}`;
 		if (done) return { id: String(done.id), to: to.screen_name, repeated: true };
 		if (requestId) {
@@ -127,6 +127,40 @@ export async function sendMoney(senderId: string, handle: string, amountCents: n
 			values (${id}::bigint, ${senderId}::bigint, ${to.id}::bigint, ${amountCents}, ${note}, ${idem}, ${requestId ?? null})`;
 		return { id, to: to.screen_name, repeated: false };
 	});
+	if (!sent.repeated) void announcePayment(sent.id);
+	return sent;
+}
+
+// The payments feed (Admin > Money): a local account that posts every
+// payment, once it has gone through, as "Alice sent $5 to Liza! #Money"
+// over its card (the link closing the text is the card's): names, not
+// handles, so nobody is mentioned. The card leaves the note out: that stays
+// between the two sides.
+export async function feedAccount(): Promise<{ id: string; screen_name: string } | null> {
+	const handle = settings().money.feed;
+	return handle ? await accountFor(handle) : null;
+}
+async function announcePayment(id: string) {
+	try {
+		if (!feature("money")) return;
+		const feed = await feedAccount();
+		if (!feed) return;
+		const t = (await payments([id])).get(id);
+		if (!t) return;
+		const { createPost } = await import("./posts");
+		// a name that would read as a mention or a link keeps the @ and dots out of it
+		const name = (p: Party) => (p.merchant?.name ?? p.name).replace(/[@＠]/g, "").replace(/\./g, "\u2024").trim() || p.screen_name;
+		await createPost(feed.id, `${name(t.sender)} sent ${shortCents(t.amount)} to ${name(t.recipient)}! #Money ${paymentUrl(id)}`, { skipPreview: true });
+	} catch (e) {
+		console.error("money feed:", e instanceof Error ? e.message : e);
+	}
+}
+// a reversed payment's feed post goes
+export async function unannouncePayment(id: string) {
+	const feed = await feedAccount();
+	if (!feed) return;
+	const { deletePost } = await import("./posts");
+	for (const p of await sql`select id::text from posts where user_id = ${feed.id}::bigint and text ~ ${`/i/xmoney/p/${id}([^0-9]|$)`}`) await deletePost(feed.id, p.id);
 }
 
 // Asks for money: of one account (it gets a notification, and pays or
@@ -281,12 +315,13 @@ export type Payment = { id: string; amount: number; note: string; at: Date; send
 // part of or that one side put in a post
 export async function payments(ids: string[], visibleTo?: string): Promise<Map<string, Payment>> {
 	if (!ids.length) return new Map();
+	const feed = visibleTo ? ((await feedAccount())?.id ?? null) : null;
 	const rows = await sql`select t.id::text, t.amount_cents, t.note, t.created_at, t.sender_id::text, t.recipient_id::text, t.reversed_at is not null as reversed from money_transfers t
 		where t.id = any(${sql.array(ids, "INT8")})
 		${
 			visibleTo
 				? sql`and (${visibleTo}::bigint in (t.sender_id, t.recipient_id) or exists (select 1 from posts p
-				where p.user_id in (t.sender_id, t.recipient_id) and p.text ~ ('/i/xmoney/p/' || t.id::text || '([^0-9]|$)')))`
+				where p.user_id in (t.sender_id, t.recipient_id, ${feed}::bigint) and p.text ~ ('/i/xmoney/p/' || t.id::text || '([^0-9]|$)')))`
 				: sql``
 		}`;
 	const who = await parties(rows.flatMap((r: any) => [r.sender_id, r.recipient_id]));
@@ -357,7 +392,8 @@ export function moneyKeyOf(url: string): string | undefined {
 // faces and the note; a merchant is a purchase, with its banner and logo when
 // it shows a banner. `by` is the handle of the account the card speaks for.
 // The card leads to the account that was paid.
-export function paymentCard(t: Payment, by: string) {
+// From the payments feed (`fromFeed`) it names both sides and leaves the note out.
+export function paymentCard(t: Payment, by: string, fromFeed = false) {
 	const go = `data-xm-go="/${esc(t.recipient.screen_name)}"`;
 	const r = t.recipient;
 	if (r.merchant) {
@@ -373,8 +409,12 @@ export function paymentCard(t: Payment, by: string) {
 	const other = sent ? r : t.sender;
 	return `<div class="xm-card xm-p2p" role="link" tabindex="0" ${go}><div class="xm-row"><div class="xm-amt">${shortCents(t.amount)}</div>
 <div class="xm-faces">${face(t.sender)}${face(r)}</div></div>
-<div class="xm-line"><span class="xm-dim">${sent ? "sent to" : "from"}</span> <span class="xm-who"><b>${esc(other.name)}</b>${badges(other)}</span></div>
-<div class="xm-row">${t.note ? `<span class="xm-dim xm-note">"${esc(t.note)}"</span>` : "<span></span>"}<span class="xm-dim">${date(t.at)}</span></div></div>`;
+<div class="xm-line">${
+		fromFeed
+			? `<span class="xm-who"><b>${esc(t.sender.name)}</b>${badges(t.sender)}</span> <span class="xm-dim">sent to</span> <span class="xm-who"><b>${esc(r.name)}</b>${badges(r)}</span>`
+			: `<span class="xm-dim">${sent ? "sent to" : "from"}</span> <span class="xm-who"><b>${esc(other.name)}</b>${badges(other)}</span>`
+	}</div>
+<div class="xm-row">${t.note && !fromFeed ? `<span class="xm-dim xm-note">"${esc(t.note)}"</span>` : "<span></span>"}<span class="xm-dim">${date(t.at)}</span></div></div>`;
 }
 
 // A request in a post, as X's "Pay @name" card: who to pay, with Money, and a
@@ -405,17 +445,20 @@ export function requestCard(q: Request, viewerId: string) {
 export async function paymentCards(posts: { authorId: string; text: string }[]): Promise<(Record<string, unknown> | undefined)[]> {
 	const wanted = posts.map((p, index) => ({ ...p, index, key: linksIn(p.text).map((l) => moneyKeyOf(l.url)).find((k) => !!k) })).filter((p) => p.key);
 	const ids = (kind: string) => [...new Set(wanted.filter((p) => p.key![0] === kind).map((p) => p.key!.slice(1)))];
-	const [paid, asked] = await Promise.all([payments(ids("p")), requests(ids("r"))]);
+	const [paid, asked, feed] = await Promise.all([payments(ids("p")), requests(ids("r")), feedAccount()]);
 	const out: (Record<string, unknown> | undefined)[] = posts.map(() => undefined);
 	for (const p of wanted) {
 		const id = p.key!.slice(1);
 		let title: string, description: string, image: string, url: string;
 		if (p.key![0] === "p") {
 			const t = paid.get(id);
-			if (!t || (p.authorId !== t.sender.id && p.authorId !== t.recipient.id)) continue;
+			const byFeed = p.authorId === feed?.id;
+			if (!t || (p.authorId !== t.sender.id && p.authorId !== t.recipient.id && !byFeed)) continue;
 			const mine = p.authorId === t.sender.id;
-			title = t.recipient.merchant ? `${shortCents(t.amount)} at ${t.recipient.merchant.name}` : mine ? `${shortCents(t.amount)} sent to ${t.recipient.name}` : `${shortCents(t.amount)} from ${t.sender.name}`;
-			description = t.note ? `“${t.note}”` : `${settings().instance_name} Money · ${date(t.at)}`;
+			title = byFeed
+				? `${t.sender.name} sent ${shortCents(t.amount)} to ${t.recipient.merchant?.name ?? t.recipient.name}`
+				: t.recipient.merchant ? `${shortCents(t.amount)} at ${t.recipient.merchant.name}` : mine ? `${shortCents(t.amount)} sent to ${t.recipient.name}` : `${shortCents(t.amount)} from ${t.sender.name}`;
+			description = t.note && !byFeed ? `“${t.note}”` : `${settings().instance_name} Money · ${date(t.at)}`;
 			image = mine ? t.recipient.avatar : t.sender.avatar;
 			url = paymentUrl(id);
 		} else {
@@ -464,7 +507,8 @@ export async function cardsApi(viewer: Viewer, url: URL): Promise<Response> {
 		requests(keys.filter((k) => k[0] === "r").map((k) => k.slice(1)), viewer.id),
 	]);
 	const out: Record<string, string> = {};
-	for (const [id, t] of paid) out[`p${id}`] = paymentCard(t, by);
+	const feed = settings().money.feed.toLowerCase().replace(/^@/, "");
+	for (const [id, t] of paid) out[`p${id}`] = paymentCard(t, by, !!feed && by === feed);
 	const preview = url.searchParams.has("preview");
 	for (const [id, q] of asked) out[`r${id}`] = requestCard(q, preview ? "" : viewer.id);
 	return Response.json(out, { headers: { "cache-control": "private, no-store" } });

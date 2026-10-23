@@ -121,6 +121,10 @@ copy during setup, and it stays on that machine.
     banner if they like
   - Payments show checkmarks and an affiliate's organisation badge; money
     received, requests and declined requests come as notifications and pushes
+  - A payments feed (Admin > Money, off until an account is named): that
+    account posts every payment as "Alice sent $5 to Liza! #Money" (names, so nobody is mentioned) over its
+    card, without the note; reversing a payment takes its post down, and the
+    Send screen says payments are public
   - The first time Money opens, each account accepts a disclaimer: the money
     is virtual, has no real-world value and can't be exchanged
   - Off by default: Admin > Settings, feature switches turns it on. Switched
