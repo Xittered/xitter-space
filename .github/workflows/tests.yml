@@ -88,6 +88,7 @@ jobs:
           bun scripts/test-scheduled-single-connection.ts
           bun scripts/test-scheduled-media.ts
           DB_POOL_MAX=1 bun scripts/test-conversation-scheduled.ts
+          bun scripts/test-follow-pagination.ts
       - name: Media privacy and chunked upload regression tests
         run: |
           bun scripts/test-embed-privacy.ts

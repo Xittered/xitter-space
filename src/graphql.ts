@@ -495,9 +495,20 @@ const likes: Handler = async (viewer, vars) => {
 const follows =
 	(kind: "following" | "followers" | "verified_followers" | "known_followers"): Handler =>
 	async (viewer, vars) => {
-		const users = vars.cursor ? [] : await followList(viewer.id, userId(vars), kind);
+		const cursor = typeof vars.cursor === "string" ? vars.cursor : "";
+		const match = /^b(\d{1,6})$/.exec(cursor);
+		if (cursor && !match) return userTimeline([]);
+		const offset = match ? Number(match[1]) : 0;
+		const pageSize = 200;
+		const users = await followList(viewer.id, userId(vars), kind, pageSize + 1, offset);
+		const page = users.slice(0, pageSize);
 		const base = BigInt(newId());
-		return userTimeline(wholeList(users.map((u, i) => userEntry(u, (base - BigInt(i) - 1n).toString())), base));
+		const entries = page.map((u, i) => userEntry(u, (base - BigInt(i) - 1n).toString()));
+		return userTimeline([
+			...entries,
+			cursorEntry("Top", "t0", (base + 1n).toString()),
+			...(users.length > pageSize ? [cursorEntry("Bottom", `b${offset + pageSize}`, (base - BigInt(entries.length) - 2n).toString())] : []),
+		]);
 	};
 
 // Settings > Privacy > Blocked and Muted accounts; both lists come back whole
