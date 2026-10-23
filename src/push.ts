@@ -106,7 +106,7 @@ const TEMPLATE = {
 					{ id: "followed", name: "New followers", control_type: "on_off", scribe_component: "followed" },
 					{ id: "tweets", name: "Posts", control_type: "tweet_control", scribe_component: "tweets" },
 					{ id: "direct_messages", name: "Direct messages", control_type: "on_off", scribe_component: "direct_messages" },
-					{ id: "money", name: "Money", control_type: "on_off", scribe_component: "money" },
+					{ id: "money", name: "Equicoins", control_type: "on_off", scribe_component: "money" },
 				],
 			},
 			{

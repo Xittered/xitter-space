@@ -467,7 +467,7 @@ const ACTIONS: Record<string, Action> = {
 			await guard(a, id, true);
 			// verified_at: "Verified since" on the About page; a new badge type starts it again
 			await sql`update users set verified_at = case when ${badge}::text is null then null when verified_type is distinct from ${badge}::text then now() else verified_at end,
-				verified_type = ${badge} where id = ${id}::bigint`;
+				verified_type = ${badge}, shop_verified_until = null where id = ${id}::bigint`;
 			await audit(a, "set_badge", id, { badge });
 			return {};
 		},

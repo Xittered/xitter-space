@@ -99,14 +99,14 @@ copy during setup, and it stays on that machine.
   that isn't imported within a day is deleted. By default only accounts a
   week old can import, and staff approve each import first (Admin > Settings,
   Import from X)
-- X Money (Money in the side bar): every account has a wallet and sends money
-  to other accounts here, with a note. It is the instance's own play money,
+- Equicoins (in the side bar): every account has a wallet and sends money
+  to other accounts, here or on a peer instance, with a note. It is play money,
   not real currency: a wallet starts with `money.starting_cents` (default
   $5), one payment moves up to `money.max_transfer_cents` (default $1,000),
   each like on your posts earns you `money.like_cents` (default 50¢, once per
-  post and account). Admin > Money sets those three, shows the money in
+  post and account). Admin > Equicoins sets those three, shows the money in
   circulation, the biggest balances and every payment, and has staff adjust a
-  balance or reverse a payment (Staff permissions: X Money; all recorded in
+  balance or reverse a payment (Staff permissions: Equicoins; all recorded in
   the audit log).
   - Requests: ask one account for an amount (it gets a notification to pay or
     decline), or anyone, as a "Pay @you" card in a post that anyone who sees it
@@ -116,19 +116,67 @@ copy during setup, and it stays on that machine.
     with a Pay button, or a purchase ("$3.52 at Taco Bell"). The composer's $
     button adds a Pay button or one of your payments; "Share it in a post" does
     it when sending or requesting
-  - Merchant mode (Settings > Your account > X Money), for gold organisations:
+  - Merchant mode (Settings > Your account > Equicoins), for gold organisations:
     payments to them read as purchases under the name they choose, with their
     banner if they like
   - Payments show checkmarks and an affiliate's organisation badge; money
     received, requests and declined requests come as notifications and pushes
-  - A payments feed (Admin > Money, off until an account is named): that
+  - A payments feed (Admin > Equicoins, off until an account is named): that
     account posts every payment as "Alice sent $5 to Liza! #Money" (names, so nobody is mentioned) over its
     card, without the note; reversing a payment takes its post down, and the
     Send screen says payments are public
-  - The first time Money opens, each account accepts a disclaimer: the money
+  - Across instances: a wallet lives on its account's home instance, and a
+    payment to `name@peer` moves the money there once (signed, retried until
+    the peer answers, refunded if it refuses). Likes from peers' accounts pay
+    too. Requests, balance adjustments and reversals stay on one instance.
+    Admin > Equicoins settings:
+    - Use the network's economy: the starting balance, like reward and largest
+      payment come from xitter.space instead of this instance's own
+      (`money.follow_network`, off)
+    - Most taken in from one instance a day, its payments and likes together;
+      over it, payments are refused and refunded and likes stop paying
+      (`money.peer_daily_cents`, default $1,000, 0 for no limit). A peer's
+      word is all there is for what it sends, so this is the only brake on a
+      peer minting money here
+    - An account moving to another instance takes its balance along
+      (`money.move_balance`, on); the new instance takes it only for an account
+      it imported from there, once per move and up to 100 times its largest
+      payment
+    - A payment a peer hasn't taken after three days fails and goes back to
+      the sender
+    - Share this instance's totals with peers and show the network's in
+      circulation, wallets and payments (`money.network_totals`, off)
+  - The shop (`/account/money/shop`, opened in Admin > Equicoins): accounts
+    spend their balance on listings staff make. An admin's listing goes up at
+    once; one from a moderator waits for an admin. A purchase is charged at
+    once and waits for staff, who deliver it or refund it; an invite code is
+    the only thing that comes without review. Moderators deliver badges
+    (Staff permissions: Equicoins shop); everything else below is delivered
+    by an admin. A paid announcement stays up until an admin takes it down
+    in Admin > Equicoins. What a listing can give:
+    - A custom badge staff made, or a badge the buyer designs (an image up to
+      256 KB, GIFs animate)
+    - An instance announcement the buyer writes
+    - A blue checkmark for the listing's days (default 30), with longer posts
+      while it lasts; it comes off by itself, and one staff gave is never
+      touched
+    - An invite code, good for one sign-up within 30 days (not while sign-up
+      is open)
+    - A hashflag: the buyer's emoji after a hashtag, for its days (default 7)
+    - A sticker pack of up to 6 of the buyer's stickers, in everyone's composer
+    - An Explore card (title, summary, a search it opens, a picture) for its
+      days (default 1)
+    - A post boost: one of the buyer's posts shows once on each page of For
+      you, marked as an ad, for its days (default 1)
+    - Badges, custom badges and checkmarks can be gifts to another account
+      here, which gets a notification once staff deliver it
+    - Approved listings are shared with peer instances, where they stay hidden
+      until that instance's staff approve them too; buying across instances
+      isn't available yet
+  - The first time Equicoins opens, each account accepts a disclaimer: the money
     is virtual, has no real-world value and can't be exchanged
   - Off by default: Admin > Settings, feature switches turns it on. Switched
-    off, the Money tab, its pages, the composer's $ button, Pay buttons, like
+    off, the Equicoins tab, its pages, the composer's $ button, Pay buttons, like
     earnings and its notifications go away, but cards already in posts still
     show. `bun scripts/test-money.ts` checks it
 - Polls with a photo on each choice

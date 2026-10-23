@@ -25,7 +25,7 @@ import { sql } from "./db";
 import { trendScope } from "./explore-settings";
 import { activeCards, cardsEntry } from "./explore-cards";
 import { isBlockedEitherWay, blockedIds, blockedFor, outOfView, protectedFor } from "./blocks";
-import { settings } from "./settings";
+import { feature, settings } from "./settings";
 import { freshAsOf, rankedFeed } from "./ranking";
 import * as articles from "./articles";
 import type { Viewer } from "./auth";
@@ -33,7 +33,7 @@ import { notificationsTimeline, unreadCount } from "./notifications";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { isId, newId } from "./ids";
 import { attachMedia } from "./media";
-import { type ThreadItem, cursorEntry, feedEntry, gridAppend, gridEntry, pinnedEntry, showMoreThreadsEntry, threadEntry, threadItems, tombstoneEntry, tweetEntry, tweetResult, userEntry, userResult } from "./model";
+import { type ThreadItem, cursorEntry, feedEntry, gridAppend, gridEntry, pinnedEntry, promotedEntry, showMoreThreadsEntry, threadEntry, threadItems, tombstoneEntry, tweetEntry, tweetResult, userEntry, userResult } from "./model";
 import { MORE_PER_PAGE, type Placed, THREADS_PER_PAGE, conversationThreads } from "./threads";
 import {
 	PostError,
@@ -136,6 +136,18 @@ const homeResponse = (entries: unknown[], feedbackActions: unknown[] = []) => ({
 });
 
 // the post an admin pinned for everyone, on top of the first page
+// One boosted post (the shop's Post boost) on each page of "For you": not the
+// viewer's own, nor one the page shows already.
+async function boostedPost(viewer: Viewer, onPage: string[]) {
+	if (!feature("money")) return undefined;
+	const [b] = await sql`select b.post_id::text as id from post_boosts b join posts p on p.id = b.post_id
+		where b.ends_at > now() and not p.hidden and p.user_id <> ${viewer.id}::bigint
+			and p.user_id not in ${blockedFor(viewer.id)} and p.user_id not in ${outOfView(viewer.id)}
+			and not (b.post_id = any(${sql.array(onPage, "INT8")}))
+		order by random() limit 1`;
+	return b ? getPost(viewer.id, b.id) : undefined;
+}
+
 async function globalPin(viewer: Viewer, entries: unknown[], first: boolean) {
 	const id = settings().operations.global_pin;
 	if (!first || !id) return;
@@ -159,16 +171,19 @@ const forYou: Handler = async (viewer, vars) => {
 	const asOf = ranked ? ranked[2] : await freshAsOf(viewer.id);
 	const offset = ranked ? Number(ranked[1]) : 0;
 	const page = await rankedFeed(viewer.id, { asOf, offset, limit: count });
-	// sort indexes run down from asOf in ranked order, below anything newer
+	// sort indexes run down from asOf in ranked order, below anything newer,
+	// two apart so a boosted post fits between two of them
 	const base = BigInt(asOf);
 	const topics = await topicsForPosts(viewer.id, page.items.filter((i) => !i.repost).map((i) => ({ id: i.post.id, authorId: i.post.author.id })));
 	const feedbackActions = [...new Map([...topics.values()].map((t) => [t.id, t])).values()].flatMap(topicFeedbackActions);
 	const entries: unknown[] = page.items.map((item, i) => {
 		const topic = item.repost ? undefined : topics.get(item.post.id);
-		return feedEntry(item, (base - BigInt(offset + i) - 1n).toString(), topic && { context: topicContext(topic), feedbackKeys: topicFeedbackKeys(topic) });
+		return feedEntry(item, (base - 2n * BigInt(offset + i) - 2n).toString(), topic && { context: topicContext(topic), feedbackKeys: topicFeedbackKeys(topic) });
 	});
+	const boosted = page.items.length > 2 ? await boostedPost(viewer, page.items.map((i) => i.post.id)) : undefined;
+	if (boosted) entries.splice(2, 0, promotedEntry(boosted, (base - 2n * BigInt(offset + 2) - 1n).toString()));
 	if (!ranked) entries.unshift(cursorEntry("Top", `t${asOf}`, inc(asOf)));
-	if (page.next !== undefined) entries.push(cursorEntry("Bottom", `r${page.next}.${asOf}`, (base - BigInt(page.next) - 1n).toString()));
+	if (page.next !== undefined) entries.push(cursorEntry("Bottom", `r${page.next}.${asOf}`, (base - 2n * BigInt(page.next) - 1n).toString()));
 	await globalPin(viewer,entries,!cursor);
 	return homeResponse(entries, feedbackActions);
 };

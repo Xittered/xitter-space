@@ -98,6 +98,9 @@ export function sniffImage(b: Buffer): Image | undefined {
 	return undefined;
 }
 
+// custom badges: GIFs are kept as uploaded, so animated ones play wherever the badge shows
+export const BADGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
 const fileOf = (id: string) => join(MEDIA_DIR, id);
 const EXT: Record<string, string> = { "image/png": "png", "image/gif": "gif", "image/webp": "webp", "image/jpeg": "jpg" };
 

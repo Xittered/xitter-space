@@ -1,4 +1,4 @@
-// End-to-end check of X Money (/account/money) against a running server:
+// End-to-end check of Equicoins (/account/money) against a running server:
 // starting balance, sending, the note, refusals, double-pressed Send, blocks,
 // admins adjusting a balance and the side bar entry. Makes its own accounts and
 // removes them.

@@ -10,7 +10,7 @@ import { loadBuild } from "./build";
 import { INSTANCE_ID, isPeer } from "./federation";
 import { sql } from "./db";
 import { newId } from "./ids";
-import { MEDIA_DIR, sniffImage } from "./media";
+import { BADGE_TYPES, MEDIA_DIR, sniffImage } from "./media";
 import { NOTICE_TYPES } from "./model";
 import { hateIn, hateInName } from "./hate";
 import { forgetHeld } from "./held";
@@ -76,8 +76,8 @@ export const toolActions: Record<string, Action> = {
 			if (!encoded || encoded.length > 350_000 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)) throw new AdminError("Upload an image up to 256 KB.");
 			const image = Buffer.from(encoded, "base64");
 			const info = sniffImage(image);
-			if (image.length > 256 * 1024 || !info || !["image/png", "image/jpeg", "image/webp"].includes(info.mime) || info.width > 1024 || info.height > 1024)
-				throw new AdminError("Use a PNG, JPEG or WebP up to 1024×1024 and 256 KB.");
+			if (image.length > 256 * 1024 || !info || !BADGE_TYPES.includes(info.mime) || info.width > 1024 || info.height > 1024)
+				throw new AdminError("Use a PNG, JPEG, WebP or GIF up to 1024×1024 and 256 KB.");
 			const id = newId();
 			await sql`insert into custom_badges (id, name, image, mime) values (${id}::bigint, ${name}, ${image}, ${info.mime})`;
 			await audit(a, "create_badge", id, { name });

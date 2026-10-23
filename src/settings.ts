@@ -27,7 +27,7 @@ export const FEATURES = {
 	notes_everyone: "Anyone can write Community Notes (off: only accounts given access on their admin page)",
 	link_previews: "Previews of public posts and profiles when their links are shared in other apps",
 	archive_import: "Import from X: accounts upload their X archive and its posts come over (Settings > Your account)",
-	money: "X Money: accounts send each other money from the side bar (the instance's own play money, not real currency)",
+	money: "Equicoins: accounts send each other money from the side bar (the instance's own play money, not real currency)",
 } as const;
 export type Feature = keyof typeof FEATURES;
 
@@ -99,7 +99,14 @@ const DEFAULTS = {
 	// money.ts: what a new wallet holds and the most one transfer moves, in cents
 	// like_cents: what a post's author earns for each like (once per post and account)
 	// feed: the handle of a local account that posts every payment ("" for none)
-	money: { starting_cents: 500, max_transfer_cents: 100_000, like_cents: 50, feed: "" },
+	// follow_network: take the starting balance, like reward and largest payment from xitter.space
+	// peer_daily_cents: most taken in from one peer a day, its transfers and likes (0: no limit).
+	// A peer's word is all there is for what it sends, so the default is one largest payment a day.
+	// move_balance: an account moving away takes its balance along
+	// network_totals: share this instance's totals with peers and show the network's
+	money: { starting_cents: 500, max_transfer_cents: 100_000, like_cents: 50, feed: "", follow_network: false, peer_daily_cents: 100_000, move_balance: true, network_totals: false },
+	// money shop: listings are in money_shop_items; only approved announcements are shown
+	money_shop: { enabled: false, announcement: null as null | { id: string; text: string; buttons: { label: string; url: string }[] } },
 	// the client's own feature switches, set by an admin (Admin > Feature
 	// switches); they win over the build's values and Xitter's own (shell.ts)
 	switch_overrides: {} as Record<string, unknown>,

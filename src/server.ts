@@ -73,6 +73,7 @@ import { acceptedEncoding, compressResponse, compressedFile } from "./compress";
 import { forgetRanking } from "./ranking";
 import { cardsApi, payMeApi, recentApi } from "./money";
 import { merchantRoute, moneyRoute } from "./money-page";
+import { expireShopCheckmarks } from "./money-shop";
 
 const MIME: Record<string, string> = {
 	js: "text/javascript; charset=utf-8",
@@ -302,6 +303,15 @@ setInterval(
 			recordError("job", e, { path: "sanction expiry" });
 		}),
 	30_000,
+).unref();
+// a checkmark bought in the shop comes off when its days are up
+setInterval(
+	() =>
+		expireShopCheckmarks().catch((e) => {
+			console.error("shop checkmark expiry failed", e.message);
+			recordError("job", e, { path: "shop checkmark expiry" });
+		}),
+	10 * 60_000,
 ).unref();
 await loadSettings();
 await resumeVideos(MEDIA_DIR);

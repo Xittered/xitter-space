@@ -691,6 +691,28 @@ export const tweetEntry = (p: PostRow, sortIndex: string) => itemEntry(p.id, twe
 export const pinnedEntry = (p: PostRow, sortIndex: string) =>
 	itemEntry(p.id, tweetResult(p), sortIndex, { type: "TimelineGeneralContext", contextType: "Pin", text: "Pinned" });
 
+// A boosted post (the shop's Post boost) as X's ad entry: the client marks
+// one carrying promotedMetadata "Ad", with its author as the advertiser.
+export const promotedEntry = (p: PostRow, sortIndex: string) => ({
+	content: {
+		__typename: "TimelineTimelineItem",
+		entryType: "TimelineTimelineItem",
+		itemContent: {
+			...tweetItem(tweetResult(p)),
+			promotedMetadata: {
+				advertiser_results: { result: userResult(p.author) },
+				disclosureType: "NoDisclosure",
+				experimentValues: [],
+				impressionId: BigInt(sortIndex).toString(16),
+				impressionString: BigInt(sortIndex).toString(16),
+				clickTrackingInfo: { urlParams: [] },
+			},
+		},
+	},
+	entryId: `promoted-tweet-${p.id}-${sortIndex}`,
+	sortIndex,
+});
+
 // a post or a repost from feed(); entry ids are item ids, so both fit in one timeline.
 // `topic`: the followed topic that brought a stranger's post into "For you".
 export const feedEntry = (

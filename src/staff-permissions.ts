@@ -49,7 +49,9 @@ export const PERMISSIONS: Record<string, Permission> = {
 	// stack traces show the server's paths and internals
 	errors: { group: "Instance", label: "See and resolve server errors", role: "admin", actions: ["errors", "resolveErrors"] },
 	mail: { group: "Instance", label: "Send test mail and digests", role: "admin", actions: ["sendTestMail", "runMailDigests"] },
-	money: { group: "Instance", label: "Change X Money settings, adjust balances and reverse payments", role: "admin", actions: ["saveMoney", "adjustMoney", "reverseTransfer"] },
+	money: { group: "Instance", label: "Change Equicoins settings, adjust balances and reverse payments, open the shop and manage its listings", role: "admin", actions: ["saveMoney", "adjustMoney", "reverseTransfer", "saveShop", "reviewShopItem", "setShopItem", "setRemoteShopItem", "clearShopAnnouncement"] },
+	// delivering anything beyond a badge (a checkmark, an announcement, a hashflag, ...) stays with admins, see money-admin.ts
+	money_shop: { group: "Instance", label: "Equicoins shop: list items, review imported listings, deliver or refund badge requests", role: "moderator", actions: ["createShopItem", "reviewRemoteShopItem", "reviewShopOrder"] },
 	oauth_apps: { group: "Instance", label: "Block and unblock OAuth apps", role: "moderator", actions: ["blockOAuthApp", "unblockOAuthApp"] },
 
 	ip_addresses: { group: "Privacy", label: "See IP addresses: where accounts sign in, other accounts seen at the same address, identities held after deletion", role: "moderator", actions: ["heldIdentities"] },
