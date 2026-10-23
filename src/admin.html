@@ -187,6 +187,13 @@ async function act(fn, done) {
 
 // X's labels under a post (model.ts NOTICE_TYPES)
 const NOTICE_LABELS = { Fosnr: "Visibility limited", Misleading: "Misleading", StayInformed: "Stay informed", GetTheLatest: "Get the latest", GovernmentRequested: "Legally required notice" };
+// Settings > Media storage: what "Compress stored files" did or is doing
+const sweepText = (c) => {
+	const mb = (n) => (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + " MB";
+	if (c.running) return "Compressing stored files: " + c.done + " of " + c.files + " done, " + mb(c.before - c.after) + " saved so far.";
+	if (c.files) return "Last run: " + c.done + " of " + c.files + " files looked at, " + mb(c.before - c.after) + " saved" + (c.error ? " (" + c.error + ")" : "") + ".";
+	return "Files stored before compression was on stay as they are until you compress them here.";
+};
 const when = (d) => d ? new Date(d).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "never";
 const duration = (s) => s < 3600 ? Math.floor(s / 60) + " min" : s < 172800 ? Math.floor(s / 3600) + " h" : Math.floor(s / 86400) + " days";
 // "Edge on Windows" from a user agent
@@ -1275,7 +1282,7 @@ const RENDER = {
 	},
 
 	async settings(main) {
-		const [{ settings: s, features, branding, slots }, { operations: o, automod: am }] = await Promise.all([api("settings"), api("operations")]);
+		const [{ settings: s, features, branding, slots, compression }, { operations: o, automod: am }] = await Promise.all([api("settings"), api("operations")]);
 		const admin = can("admin");
 		const dis = admin ? "" : " disabled";
 		const modes = { invite: "Invite only: a code is needed", open: "Open: anyone can sign up, codes optional", closed: "Closed: no new accounts" };
@@ -1294,6 +1301,18 @@ const RENDER = {
 			[["image_mb", "Image size, MB"], ["video_mb", "Video size, MB"], ["video_seconds", "Video length, seconds"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" data-limit="' + k + '" value="' + esc(s.limits[k]) + '"' + dis + "></div>").join("") +
 			(admin ? '<button class="btn primary" id="saveLimits">Save</button>' : "") + "</div>" +
+			'<div class="box"><h2>Media storage</h2><p class="dim small">Compression makes photos and videos smaller as they are stored, so the instance needs less disk and pages load faster. Photos are fitted inside the size below and saved again as JPEG (PNG when see-through); videos are encoded again. A file is only replaced when that made it smaller. GIFs and animated images stay as they are.</p>' +
+			'<label class="row" style="margin:6px 0"><input type="checkbox" id="mediaCompress"' + (s.media.compress ? " checked" : "") + dis + "> Compress uploads</label>" +
+			// the sizes the app asks for (small, 900x900, medium, large, 4096x4096); the
+			// photo is stored at this size only, and every view gets it
+			'<div class="field"><label>Photo size: the stored photo is shrunk to this and the original is not kept</label><select data-media="photo_max_side"' + dis + ">" +
+			[[680, "680 pixels: small, enough for phones"], [900, "900 pixels"], [1200, "1200 pixels: medium"], [2048, "2048 pixels: large, the most the app shows (default)"], [4096, "4096 pixels: close to most originals"]]
+				.map(([v, l]) => '<option value="' + v + '"' + (s.media.photo_max_side === v ? " selected" : "") + ">" + esc(l) + "</option>").join("") + "</select></div>" +
+			[["photo_quality", "Photo quality, 30 to 100 (80 looks the same to most people)"], ["video_max_side", "Video longest side, pixels (720 is small, 1280 is HD)"], ["video_crf", "Video quality, 18 to 40 (lower is better and bigger: 23 is close to the original, 28 is small)"]]
+				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" data-media="' + k + '" value="' + esc(s.media[k]) + '"' + dis + "></div>").join("") +
+			(admin ? '<button class="btn primary" id="saveMedia">Save</button>' : "") +
+			'<p class="dim small" id="sweepState" style="margin-top:16px">' + esc(sweepText(compression)) + "</p>" +
+			(admin ? '<button class="btn" id="compressStored">Compress stored files</button>' : "") + "</div>" +
 			'<div class="box"><h2>Rate limits</h2><p class="dim small">Requests per account per 15 minutes. Staff have no limits. Hitting one shows the app\'s "try again later" and a line in the server log.</p>' +
 			[["read", "Any request (a page load is about 30)"], ["endpoint", "Any one kind of request (a stuck page loses only that)"], ["write", "Other changes (settings, deletes, lists…)"], ["post", "Posts and replies"], ["engage", "Likes, reposts, bookmarks, follows"], ["dm", "Messages sent"], ["upload", "Files uploaded"]]
 				.map(([k, l]) => '<div class="field"><label>' + l + '</label><input type="number" min="1" data-rate="' + k + '" value="' + esc(s.rate_limits[k]) + '"' + dis + "></div>").join("") +
@@ -1372,7 +1391,20 @@ const RENDER = {
 				act(() => api("decideArchiveImport", { userId: b.dataset.aiDecline, approve: false, reason }), "Declined; the archive was deleted").then(route);
 			});
 		}, () => { $("#aiPending").textContent = "Couldn't load the imports."; });
+		// the sweep runs in the background; its line follows it while the page is open
+		const sweepLine = $("#sweepState");
+		const followSweep = (c) => {
+			sweepLine.textContent = sweepText(c);
+			if (c.running) setTimeout(() => sweepLine.isConnected && api("compressionState").then((r) => followSweep(r.compression), () => {}), 3000);
+		};
+		followSweep(compression);
 		if (!admin) return;
+		$("#saveMedia").onclick = () => {
+			const m = { compress: $("#mediaCompress").checked };
+			main.querySelectorAll("[data-media]").forEach((i) => m[i.dataset.media] = i.value);
+			save({ media: m }, m.compress ? "Saved; new uploads are compressed" : "Saved");
+		};
+		$("#compressStored").onclick = () => act(() => api("compressStored"), "Compressing stored files in the background").then((r) => r && followSweep(r.compression));
 		$("#saveFollows").onclick = () => save({ default_follows: $("#follows").value.split(",").map((x) => x.trim()).filter(Boolean) }, "Saved");
 		$("#saveName").onclick = () => save({ instance_name: $("#name").value, source_url: $("#source").value }, "Saved");
 		$("#saveFeatures").onclick = () => {

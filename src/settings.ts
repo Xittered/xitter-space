@@ -54,6 +54,9 @@ const DEFAULTS = {
 		money: false,
 	} as Record<Feature, boolean>,
 	limits: { image_mb: 5, video_mb: Number(process.env.MAX_VIDEO_MB ?? 200), video_seconds: Number(process.env.MAX_VIDEO_SECONDS ?? 600) },
+	// media-compress.ts and video.ts: uploads made smaller as they're stored, for
+	// instances short on disk; off keeps photos as they came
+	media: { compress: false, photo_max_side: 2048, photo_quality: 80, video_max_side: 1280, video_crf: 26 },
 	// per account per 15 minutes (ratelimit.ts); sign-in and mail limits are fixed
 	rate_limits: { read: 6000, endpoint: 1000, write: 1500, post: 150, engage: 1000, dm: 1500, upload: 150 },
 	// longest post per badge, in X's weighted characters (textlen.ts); grey covers

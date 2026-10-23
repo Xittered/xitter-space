@@ -1679,6 +1679,9 @@ alter table money_wallets add column if not exists disclaimer_at timestamptz;
 -- a payment staff reversed (Admin > Money): the money went back to its sender
 alter table money_transfers add column if not exists reversed_at timestamptz;
 alter table money_transfers add column if not exists reversed_by bigint references users (id) on delete set null;
+-- a file media-compress.ts has already made smaller (or tried to): the sweep
+-- over stored files passes it by, so a photo isn't encoded again and again
+alter table media add column if not exists compressed boolean not null default false;
 
 alter table posts add column if not exists reply_selections text[] not null default '{}';
 alter table posts add column if not exists reply_allowed_values text[] not null default '{}';

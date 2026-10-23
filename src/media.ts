@@ -1,6 +1,7 @@
 // Uploads: the client's chunked upload (INIT, APPEND, FINALIZE, STATUS),
 // storage on disk, serving, and the media objects attached to posts.
-// Images are stored as uploaded (a GIF may be cropped first); GIFs are served
+// Images are stored as uploaded (a GIF may be cropped first, and with
+// compression on a photo is made smaller by media-compress.ts); GIFs are served
 // as images, so they animate without a video conversion step. Videos are
 // converted by video.ts.
 
@@ -18,6 +19,7 @@ import { sql } from "./db";
 import { isId, newId } from "./ids";
 import { settings } from "./settings";
 import { gifProxy } from "./gifs";
+import { compressUpload } from "./media-compress";
 import { cropGif, maxVideoBytes, posterFile, progress, queueVideo, sourceFile, videoError, videoSupported } from "./video";
 
 export const MEDIA_DIR = process.env.MEDIA_DIR ?? "media";
@@ -66,7 +68,7 @@ export type MediaRow = {
 	sensitive_warning?: string[] | null;
 };
 
-type Image = { mime: string; width: number; height: number };
+export type Image = { mime: string; width: number; height: number };
 
 // type and dimensions from the file header; nothing else is trusted
 export function sniffImage(b: Buffer): Image | undefined {
@@ -449,9 +451,11 @@ async function finalize(id: string, p: Pending): Promise<Response> {
 			return uploadError("File is too large.");
 		}
 		if (image.mime === "image/gif") ({ data, image } = await croppedGif(id, data, image));
+		let compressed: boolean;
+		({ data, image, compressed } = await compressUpload(data, image));
 		writeFileSync(fileOf(id), data);
-		await sql`insert into media (id, user_id, kind, mime, size, width, height)
-			values (${id}::bigint, ${p.userId}::bigint, 'photo', ${image.mime}, ${data.length}, ${image.width}, ${image.height})`;
+		await sql`insert into media (id, user_id, kind, mime, size, width, height, compressed)
+			values (${id}::bigint, ${p.userId}::bigint, 'photo', ${image.mime}, ${data.length}, ${image.width}, ${image.height}, ${compressed})`;
 		return Response.json({
 			...idFields(id),
 			size: data.length,

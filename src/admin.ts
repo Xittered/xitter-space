@@ -22,6 +22,7 @@ import { createInvite, staffHandleProblem } from "./invites";
 import { forgetHeld, handleHeld, retireAccount } from "./held";
 import { activeStrikes, shutOut } from "./moderation";
 import { REASONS } from "./reports";
+import { startSweep, sweepState } from "./media-compress";
 import { FEATURES, type Feature, type SignupMode, allSettings, setSetting, settings } from "./settings";
 import { SLOTS, brandingState, resetBranding, saveBranding } from "./branding";
 import { createPlatform, renameWebSource } from "./platforms";
@@ -753,8 +754,19 @@ const ACTIONS: Record<string, Action> = {
 
 	settings: {
 		role: "support",
-		run: async () => ({ settings: await allSettings(), features: FEATURES, branding: brandingState(), slots: SLOTS }),
+		run: async () => ({ settings: await allSettings(), features: FEATURES, branding: brandingState(), slots: SLOTS, compression: sweepState() }),
 	},
+
+	// Settings > Media: files stored before compression was on (media-compress.ts)
+	compressStored: {
+		role: "admin",
+		run: async (a) => {
+			if (!settings().media.compress) throw new AdminError("Switch compression on and save first.");
+			if (startSweep()) await audit(a, "compress_stored", null);
+			return { compression: sweepState() };
+		},
+	},
+	compressionState: { role: "support", run: async () => ({ compression: sweepState() }) },
 
 	saveSettings: {
 		role: "admin",
@@ -788,6 +800,21 @@ const ACTIONS: Record<string, Action> = {
 					video_seconds: n(b.limits.video_seconds, 5, 7200, "Video length"),
 				});
 				changed.push("limits");
+			}
+			if (b.media && typeof b.media === "object") {
+				const n = (v: unknown, lo: number, hi: number, what: string) => {
+					const x = Number(v);
+					if (!Number.isInteger(x) || x < lo || x > hi) throw new AdminError(`${what} must be a whole number from ${lo} to ${hi}.`);
+					return x;
+				};
+				await setSetting("media", {
+					compress: !!b.media.compress,
+					photo_max_side: [680, 900, 1200, 2048, 4096].includes(Number(b.media.photo_max_side)) ? Number(b.media.photo_max_side) : n(b.media.photo_max_side, 680, 4096, "Photo size"),
+					photo_quality: n(b.media.photo_quality, 30, 100, "Photo quality"),
+					video_max_side: n(b.media.video_max_side, 240, 1920, "Video size"),
+					video_crf: n(b.media.video_crf, 18, 40, "Video quality"),
+				});
+				changed.push("media");
 			}
 			if (b.rate_limits && typeof b.rate_limits === "object") {
 				const next = { ...s.rate_limits };
