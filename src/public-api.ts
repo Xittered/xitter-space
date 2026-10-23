@@ -14,7 +14,8 @@ import { callOperation } from "./graphql";
 import { isId, newId } from "./ids";
 import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import { type PostRow, badgeList, isOrganization, isVerified, verifiedSince } from "./model";
-import { PostError, feed, getPost, postsByIds, replies, type FeedItem } from "./posts";
+import { PostError, feed, getPost, likerIds, postsByIds, replies, type FeedItem } from "./posts";
+import { setProfileImage, updateProfileText } from "./rest";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { searchPosts, searchUsers } from "./search";
 import { feature, settings } from "./settings";
@@ -450,13 +451,38 @@ const op = async (name: string, v: Viewer, vars: Record<string, unknown>) => {
 
 const ROUTES: Route[] = [
 	{ method: "GET", pattern: /^\/me$/, scope: "read", run: async (v) => ({ data: userJson((await userByName(v.id, v.screen_name))!) }) },
+	{
+		// edit the profile: name, bio, location, website (empty string clears),
+		// avatar_media_id / banner_media_id from POST /media, remove_banner: true
+		method: "PATCH", pattern: /^\/me$/, scope: "write",
+		run: async (v, _m, req) => {
+			const b = await body(req);
+			const text: Record<string, string> = {};
+			for (const [key, web] of [["name", "name"], ["bio", "description"], ["location", "location"], ["website", "url"]] as const) {
+				if (b[key] === undefined || b[key] === null) continue;
+				if (typeof b[key] !== "string") throw new ApiError(400, `${key} is a string.`);
+				text[web] = b[key];
+			}
+			if (b.avatar_media_id !== undefined && !isId(String(b.avatar_media_id))) throw new ApiError(400, "avatar_media_id is a media id.");
+			if (b.banner_media_id !== undefined && !isId(String(b.banner_media_id))) throw new ApiError(400, "banner_media_id is a media id.");
+			const problem =
+				(Object.keys(text).length ? await updateProfileText(v, text) : null) ??
+				(b.avatar_media_id !== undefined ? await setProfileImage(v, "avatar", String(b.avatar_media_id)) : null) ??
+				(b.banner_media_id !== undefined ? await setProfileImage(v, "banner", String(b.banner_media_id)) : null);
+			if (problem) throw new ApiError(400, problem);
+			if (b.remove_banner === true) await sql`update users set banner_url = null where id = ${v.id}::bigint`;
+			return { data: userJson((await userByName(v.id, v.screen_name))!) };
+		},
+	},
 	{ method: "GET", pattern: /^\/users\/([^/]+)$/, scope: "read", run: async (v, m) => ({ data: userJson(await userOr404(v, m[1])) }) },
 	{
 		method: "GET", pattern: /^\/users\/([^/]+)\/posts$/, scope: "read",
 		run: async (v, m, _r, url) => {
 			const u = await userOr404(v, m[1]);
 			const limit = limitOf(url);
-			return page(await feed({ viewerId: v.id, authors: { user: u.id }, replies: url.searchParams.get("replies") === "true", kinds: "both", limit, before: cursorOf(url) }), limit);
+			// replies=true mixes replies in, replies=only is a profile's Replies tab
+			const r = url.searchParams.get("replies");
+			return page(await feed({ viewerId: v.id, authors: { user: u.id }, replies: r === "true" || r === "only", onlyReplies: r === "only", kinds: "both", limit, before: cursorOf(url) }), limit);
 		},
 	},
 	{
@@ -479,6 +505,15 @@ const ROUTES: Route[] = [
 		run: async (v, m, _r, url) => {
 			await postOr404(v, m[1]);
 			return { data: (await replies(v.id, m[1], limitOf(url))).map((p) => postJson(p)) };
+		},
+	},
+	{
+		method: "GET", pattern: /^\/posts\/(\d{1,19})\/likes$/, scope: "read",
+		run: async (v, m, _r, url) => {
+			await postOr404(v, m[1]);
+			const ids = await likerIds(v.id, m[1], limitOf(url, 200));
+			const users = await usersByIds(v.id, ids);
+			return { data: ids.flatMap((id) => (users.has(id) ? [userJson(users.get(id)!)] : [])) };
 		},
 	},
 	{
@@ -611,7 +646,7 @@ export async function publicApi(req: Request, url: URL): Promise<Response> {
 }
 
 // tokens are sent explicitly, never as cookies, so any site may call the API
-const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, DELETE, OPTIONS", "access-control-max-age": "86400" };
+const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, PATCH, DELETE, OPTIONS", "access-control-max-age": "86400" };
 function withCors(res: Response) {
 	for (const [k, v] of Object.entries(CORS)) res.headers.set(k, v);
 	return res;

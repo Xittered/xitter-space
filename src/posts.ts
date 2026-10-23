@@ -375,6 +375,14 @@ export async function replies(viewerId: string, id: string, limit = 100): Promis
 	return hydrate(viewerId, rows.map(toRow));
 }
 
+// who liked a post, newest first, minus the accounts the viewer can't see
+export async function likerIds(viewerId: string, id: string, limit = 100): Promise<string[]> {
+	const rows = await sql`select l.user_id::text as id from likes l where l.post_id = ${id}::bigint
+		and l.user_id not in ${blockedFor(viewerId)} and l.user_id not in ${protectedFor(viewerId)} and l.user_id not in ${outOfView(viewerId)}
+		order by l.created_at desc limit ${limit}`;
+	return rows.map((r: any) => r.id);
+}
+
 export async function repliesBelow(viewerId: string, id: string, limit = 1000): Promise<PostRow[]> {
 	const rows = await sql`${select(viewerId)} where p.id in (
 			with recursive tree as (

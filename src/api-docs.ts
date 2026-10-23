@@ -9,13 +9,15 @@ type Endpoint = [method: string, path: string, scope: "read" | "write", what: st
 
 const ENDPOINTS: Endpoint[] = [
 	["GET", "/me", "read", "Your account."],
+	["PATCH", "/me", "write", "Edit your profile: <code>name</code>, <code>bio</code>, <code>location</code>, <code>website</code> (an empty string clears), <code>avatar_media_id</code> and <code>banner_media_id</code> from <code>POST /media</code>, <code>remove_banner: true</code>. Answers with the account."],
 	["GET", "/users/{screen_name}", "read", "An account."],
-	["GET", "/users/{screen_name}/posts", "read", "Its posts and reposts, newest first. <code>replies=true</code> includes replies."],
+	["GET", "/users/{screen_name}/posts", "read", "Its posts and reposts, newest first. <code>replies=true</code> includes replies, <code>replies=only</code> gives just the replies."],
 	["GET", "/users/{screen_name}/followers", "read", "Who follows it (up to <code>limit</code>, 200 at most)."],
 	["GET", "/users/{screen_name}/following", "read", "Who it follows."],
 	["GET", "/timeline", "read", "Posts and reposts from you and the accounts you follow, newest first."],
 	["GET", "/posts/{id}", "read", "One post."],
 	["GET", "/posts/{id}/replies", "read", "Its replies."],
+	["GET", "/posts/{id}/likes", "read", "Who liked it, newest first (up to <code>limit</code>, 200 at most)."],
 	["GET", "/search/posts?q=", "read", "Posts matching a search, with the same operators as the app (<code>from:</code>, <code>filter:media</code>, ...). <code>sort=top</code> for top posts."],
 	["GET", "/search/users?q=", "read", "Accounts matching a name or handle."],
 	["POST", "/posts", "write", "Post. Body: <code>text</code>, and optionally <code>reply_to</code> (a post id), <code>quote</code> (a post id), <code>media_ids</code> (up to 4 from <code>/media</code>), <code>sensitive</code>."],
