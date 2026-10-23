@@ -46,6 +46,9 @@ const ALWAYS = [
 	// the signed-out home page's footer keeps Terms and Privacy (our rules page)
 	'nav[aria-label="Footer"] > div:has(> a[href^="http"]:not([href$="/tos"]):not([href$="/privacy"]))',
 	'nav[aria-label="Footer"] > div:has(> a[href^="/i/jf/stories"])',
+	// a menu's divider with nothing after it (the More menu ends with one, the
+	// entries it led to being gone)
+	'[role="menu"] [data-testid="Dropdown"] div:has(> [role="separator"]):last-child',
 ];
 
 export function hideCss(): string {
@@ -82,9 +85,11 @@ export const MONEY_ICON = "M9.69 5.11L10.04 3.60L15.04 3.60L14.76 4.80L18.46 4.8
 export const MONEY_ICON_FILLED = "M10.80 4.20L14 4.20L13.65 5.70L17.65 5.70L16.92 8.90L10.41 8.91L10.11 9.01L9.92 9.13L9.76 9.29L9.60 9.57L9.55 9.87L9.62 10.14L9.80 10.34L10.06 10.44L14.06 10.45L14.86 10.56L15.32 10.72L15.90 11.04L16.25 11.34L16.70 11.92L16.97 12.53L17.11 13.30L17.09 14.01L16.90 14.84L16.69 15.35L16.42 15.85L16.09 16.32L15.72 16.76L15.29 17.16L14.83 17.51L14.33 17.81L13.82 18.05L12.94 18.31L12.51 20.20L9.31 20.20L9.72 18.40L5.42 18.40L6.16 15.20L12.96 15.19L13.27 15.09L13.46 14.97L13.68 14.72L13.78 14.53L13.83 14.23L13.76 13.96L13.58 13.76L13.32 13.66L9.32 13.65L8.52 13.54L8.06 13.38L7.48 13.06L6.94 12.56L6.67 12.18L6.41 11.57L6.27 10.80L6.29 10.09L6.39 9.57L6.56 9.05L6.96 8.25L7.28 7.78L7.66 7.34L8.09 6.94L8.55 6.59L9.04 6.29L9.56 6.05L10.43 5.79Z";
 const TONE = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 1.8v14.4a7.2 7.2 0 0 0 0-14.4z";
 const CAT = "M5 3.5 9.2 7.6A9 9 0 0 1 12 7.2a9 9 0 0 1 2.8.4L19 3.5V12a7 7 0 0 1-14 0V3.5Zm4.5 8.3a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2Zm5 0a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2Z";
+// four tiles: the admin panel
+const PANEL = "M3 3h8v10H3V3zm2 2v6h4V5H5zm8-2h8v6h-8V3zm2 2v2h4V5h-4zM3 15h8v6H3v-6zm2 2v2h4v-2H5zm8-4h8v8h-8v-8zm2 2v4h4v-4h-4z";
 const KEY = "M280-400q-33 0-56.5-23.5T200-480q0-33 23.5-56.5T280-560q33 0 56.5 23.5T360-480q0 33-23.5 56.5T280-400Zm0 160q-100 0-170-70T40-480q0-100 70-170t170-70q67 0 121.5 33t86.5 87h352l120 120-180 180-80-60-80 60-85-60h-47q-32 54-86.5 87T280-240Zm0-80q56 0 98.5-34t56.5-86h125l58 41 82-61 71 55 75-75-40-40H435q-14-52-56.5-86T280-640q-66 0-113 47t-47 113q0 66 47 113t113 47Z";
 const GLOBE = "M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm-40-82v-78q-33 0-56.5-23.5T360-320v-40L168-552q-3 18-5.5 36t-2.5 36q0 121 79.5 212T440-162Zm276-102q41-45 62.5-100.5T800-480q0-98-54.5-179T600-776v16q0 33-23.5 56.5T520-680h-80v80q0 17-11.5 28.5T400-560h-80v80h240q17 0 28.5 11.5T600-440v120h40q26 0 47 15.5t29 40.5Z";
-// Every link is a tab on the account pages. `where` adds it to the client too:
+// Every link under /account/ is a tab on the account pages. `where` adds it to the client too:
 // the More menu, Settings > Your account, or both. The menu keeps only what
 // someone may need to act on; the rest live in Settings. "nav" is an entry of
 // its own in the side bar, its page filling the main column.
@@ -103,7 +108,7 @@ export async function menuLinks(userId: string): Promise<MenuLink[]> {
 	const [u] = await sql`select ${isOrganizationSql(sql`u`)}
 			or exists (select 1 from affiliations where user_id = u.id) or exists (select 1 from affiliation_requests where user_id = u.id) as org,
 		exists (select 1 from staff_messages where user_id = u.id and revoked_at is null) or exists (select 1 from moderation_appeals where user_id = u.id) as notices,
-		coalesce(u.verified_type in ('business', 'government', 'government_individual'), false) as gold
+		coalesce(u.verified_type in ('business', 'government', 'government_individual'), false) as gold, u.role
 		from users u where u.id = ${userId}::bigint`;
 	if (u?.org) links.push({ href: "/account/organisation", text: "Organisation", description: "Manage affiliates, or answer an organisation that asked to add you.", icon: BUILDING, where: "both" });
 	if (u?.gold) links.push({ href: "/account/decor", text: "Profile decor", description: "Dress your profile with a theme, background and avatar frame from Steam.", icon: PALETTE, viewBox: "0 -960 960 960", where: "settings" });
@@ -117,6 +122,8 @@ export async function menuLinks(userId: string): Promise<MenuLink[]> {
 	links.push({ href: "/account/migrate", text: "Move account", description: "Bring your account here from another instance, or take it to another one.", icon: MOVE, where: "settings" });
 	links.push({ href: "/account/api", text: "API", description: "Make tokens that let scripts and bots use your account.", icon: CODE, viewBox: "0 -960 960 960", where: "settings" });
 	links.push({ href: "/account/notes/appeals", text: "Note appeals", description: "Appeal a Community Note or review appeals as staff.", icon: SHIELD, where: "settings" });
+	// staff reach the panel from the menu; the panel itself still asks what staffGate asks
+	if (u?.role) links.push({ href: "/admin", text: "Admin", description: `Reports, accounts and ${s.instance_name}'s settings.`, icon: PANEL, where: "menu" });
 	return links;
 }
 
@@ -351,6 +358,8 @@ export const TIDY_SCRIPT = `(function(){
 		a.setAttribute("href",to);a.setAttribute("data-xitter-link","");
 		a.addEventListener("click",function(e){
 			e.preventDefault();e.stopPropagation();
+			// the admin panel is a page of its own, outside the client
+			if(to==="/admin"){location.assign(to);return}
 			// the menu shuts when its full-screen backdrop is clicked, not on a page change
 			var menu=a.closest('[role="menu"]');
 			if(menu)[].forEach.call(menu.parentNode.children,function(c){if(c!==menu&&getComputedStyle(c).position==="fixed")c.click()});

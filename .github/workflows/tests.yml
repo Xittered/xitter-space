@@ -41,7 +41,7 @@ jobs:
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.4.3
+          bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - name: Install video tools
         run: |
@@ -61,6 +61,7 @@ jobs:
           bun scripts/test-two-factor-credentials.ts
           bun scripts/test-poll-visibility.ts
           bun scripts/test-list-visibility-races.ts
+          bun scripts/test-reply-controls-db.ts
           bun scripts/test-search-operators.ts
           bun scripts/test-note-appeals.ts
           bun scripts/test-search-indexing.ts

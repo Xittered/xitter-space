@@ -1679,3 +1679,48 @@ alter table money_wallets add column if not exists disclaimer_at timestamptz;
 -- a payment staff reversed (Admin > Money): the money went back to its sender
 alter table money_transfers add column if not exists reversed_at timestamptz;
 alter table money_transfers add column if not exists reversed_by bigint references users (id) on delete set null;
+
+alter table posts add column if not exists reply_selections text[] not null default '{}';
+alter table posts add column if not exists reply_allowed_values text[] not null default '{}';
+
+do $$ begin
+	if to_regclass('reply_country_catalog') is null then
+		create table reply_country_catalog (value text primary key, account_count bigint not null);
+		insert into reply_country_catalog (value, account_count)
+		select value, count(*) from users u cross join lateral
+			(select distinct trim(v) as value from unnest(array[u.country, u.based_in_override]) v where nullif(trim(v), '') is not null) c
+		group by value;
+	end if;
+end $$;
+
+create or replace function update_reply_country_catalog() returns trigger language plpgsql as $$
+declare
+	previous_values text[] := '{}';
+	next_values text[] := '{}';
+	entry text;
+	delta integer;
+begin
+	if TG_OP <> 'INSERT' then
+		select array_agg(distinct trim(v)) into previous_values from unnest(array[OLD.country, OLD.based_in_override]) v where nullif(trim(v), '') is not null;
+	end if;
+	if TG_OP <> 'DELETE' then
+		select array_agg(distinct trim(v)) into next_values from unnest(array[NEW.country, NEW.based_in_override]) v where nullif(trim(v), '') is not null;
+	end if;
+	previous_values := coalesce(previous_values, '{}');
+	next_values := coalesce(next_values, '{}');
+	for entry in select distinct unnest(previous_values || next_values) order by 1 loop
+		delta := (entry = any(next_values))::integer - (entry = any(previous_values))::integer;
+		if delta = 1 then
+			insert into reply_country_catalog (value, account_count) values (entry, 1)
+				on conflict (value) do update set account_count = reply_country_catalog.account_count + 1;
+		elsif delta = -1 then
+			update reply_country_catalog set account_count = account_count - 1 where value = entry;
+			delete from reply_country_catalog where value = entry and account_count = 0;
+		end if;
+	end loop;
+	return null;
+end $$;
+
+drop trigger if exists users_reply_country_catalog on users;
+create trigger users_reply_country_catalog after insert or delete or update of country, based_in_override on users
+	for each row execute function update_reply_country_catalog();

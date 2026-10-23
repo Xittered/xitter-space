@@ -16,6 +16,7 @@ import { absolute, mediaUpload, mediaUrl, posterUrl } from "./media";
 import { type PostRow, badgeList, isOrganization, isVerified, verifiedSince } from "./model";
 import { PostError, feed, getPost, likerIds, postsByIds, replies, type FeedItem } from "./posts";
 import { setProfileImage, updateProfileText } from "./rest";
+import { ReplyControlError } from "./reply-controls";
 import { type Bucket, limitHeaders, limitedResponse, noteRefusal, take } from "./ratelimit";
 import { searchPosts, searchUsers } from "./search";
 import { feature, settings } from "./settings";
@@ -444,7 +445,7 @@ const op = async (name: string, v: Viewer, vars: Record<string, unknown>) => {
 	try {
 		return await callOperation(name, v, vars);
 	} catch (e) {
-		if (e instanceof PostError) throw new ApiError(e.code === 144 ? 404 : 400, e.message);
+		if (e instanceof PostError || e instanceof ReplyControlError) throw new ApiError(e.code === 144 ? 404 : 400, e.message);
 		throw e;
 	}
 };

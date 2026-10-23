@@ -229,6 +229,61 @@ export const toolActions: Record<string, Action> = {
 			return {};
 		},
 	},
+	bulkStrike: {
+		role: "moderator",
+		run: async (a, b) => {
+			const body = textOf(b.body);
+			if (b.include_alts === true && !allows(a.role, "ip_addresses")) throw new AdminError("IP address permission is required to include alts.", 403);
+			if ((b.ids !== undefined && !Array.isArray(b.ids)) || (b.handles !== undefined && !Array.isArray(b.handles))) throw new AdminError("Provide lists of ids or handles.");
+			if ((b.ids?.length ?? 0) + (b.handles?.length ?? 0) > 50) throw new AdminError("At most 50 handles or ids at a time.");
+			const wanted = new Map<string, string>();
+			const missing: string[] = [];
+			for (const x of b.ids ?? []) wanted.set(idOf(x), "");
+			if ((b.handles ?? []).some((h: unknown) => typeof h !== "string")) throw new AdminError("Handles must be text.");
+			const names: string[] = [...new Set<string>((b.handles ?? []).map((h: string) => h.trim().replace(/^@+/, "").toLowerCase()).filter(Boolean))];
+			if (names.some((n) => n.length > 80)) throw new AdminError("Invalid handle.");
+			if (names.length) {
+				const rows = await sql`select id::text, screen_name from users where lower(screen_name) = any(${sql.array(names, "TEXT")})`;
+				const byName = new Map(rows.map((r) => [r.screen_name.toLowerCase(), r]));
+				for (const n of names) {
+					const r = byName.get(n);
+					if (r) wanted.set(r.id, r.screen_name);
+					else missing.push(n);
+				}
+			}
+			if (!wanted.size && !missing.length) throw new AdminError("Pick at least one account.");
+			let withAlts = false;
+			if (b.include_alts === true && wanted.size) {
+				const rows = await sql`select distinct u.id::text as id, u.screen_name from login_events mine
+					join login_events other on other.ip = mine.ip and other.user_id <> mine.user_id and other.created_at > now() - interval '90 days'
+					join users u on u.id = other.user_id
+					where mine.user_id = any(${sql.array([...wanted.keys()], "BIGINT")}) and mine.ip is not null and mine.created_at > now() - interval '90 days'
+					order by id limit 51`;
+				for (const r of rows) if (!wanted.has(r.id)) { wanted.set(r.id, r.screen_name); withAlts = true; }
+				if (wanted.size > 50) throw new AdminError("That's over 50 accounts with alts included. Strike fewer at a time.");
+			}
+			const results: { id: string; screen_name: string; ok: boolean; why?: string; delivered?: boolean; error?: boolean; strikes?: number; outcome?: string; hours?: number }[] = [];
+			for (const [id, name] of wanted) {
+				if (id === a.id) { results.push({ id, screen_name: name || a.screen_name, ok: false, why: "your own account" }); continue; }
+				let delivered = false;
+				let screenName = name;
+				try {
+					const u = await guard(a, id, true);
+					screenName = u.screen_name;
+					const message = newId();
+					await sql`insert into staff_messages (id, user_id, actor_id, kind, body) values (${message}::bigint, ${id}::bigint, ${a.id}::bigint, 'strike', ${body})`;
+					delivered = true;
+					const escalation = b.escalate !== false ? await escalate(id, a.id, `bulk strike from @${a.screen_name}`) : undefined;
+					results.push({ id, screen_name: screenName, ok: true, strikes: escalation?.strikes, outcome: escalation?.outcome, hours: escalation?.hours });
+				} catch (e) {
+					results.push({ id, screen_name: screenName, ok: false, delivered, error: !(e instanceof AdminError), why: e instanceof AdminError ? e.message : delivered ? "Strike sent, but escalation failed. Review the account before retrying." : "Could not send the strike." });
+				}
+			}
+			const struck = results.filter((r) => r.ok || r.delivered);
+			await audit(a, "bulk_strike", null, { count: struck.length, ids: struck.map((r) => r.id), results, missing, escalate: b.escalate !== false, alts: withAlts });
+			return { results, missing };
+		},
+	},
 
 	appeals: {
 		role: "moderator",

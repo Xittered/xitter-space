@@ -386,6 +386,7 @@ export type PostRow = {
 	// the viewer may not reply to this conversation
 	reply_limited?: boolean;
 	conversation_policy?: string | null;
+	conversation_selections?: string[] | null;
 	conversation_owner?: string | null;
 	edited_at?: Date | null;
 	// ids the post went by before each edit, oldest first
@@ -455,8 +456,8 @@ export function hashtags(text: string) {
 // where the client reads limitedActionResults from
 export function tweetResult(p: PostRow, withTypename = true): Record<string, unknown> {
 	const tweet = plainTweet(p, withTypename);
+	const audience = p.conversation_policy === "Community" ? `Accounts @${p.conversation_owner} follows can reply` : p.conversation_policy === "MyNetwork" ? `Accounts @${p.conversation_owner} follows and accounts they follow can reply` : p.conversation_policy === "Followers" ? `Accounts following @${p.conversation_owner} can reply` : ["Verified", "Premium"].includes(p.conversation_policy ?? "") ? "Verified accounts can reply" : ["Country", "CountryOfOrigin"].includes(p.conversation_policy ?? "") ? `Accounts based in ${(p.conversation_selections ?? []).join(", ")} can reply` : `Accounts @${p.conversation_owner} mentioned can reply`;
 	if ((!p.reply_limited && !p.notice) || !withTypename) return tweet;
-	const who = p.conversation_policy === "Community" ? "follows" : p.conversation_policy === "Verified" ? "allows (verified accounts only)" : "mentioned";
 	return {
 		__typename: "TweetWithVisibilityResults",
 		tweet,
@@ -469,7 +470,7 @@ export function tweetResult(p: PostRow, withTypename = true): Record<string, unk
 						__typename: "CtaLimitedActionPrompt",
 						cta_type: "SeeConversation",
 						headline: { text: "Who can reply?", entities: [] },
-						subtext: { text: `Accounts @${p.conversation_owner} ${who} can reply`, entities: [] },
+						subtext: { text: audience + (p.conversation_policy === "ByInvitation" ? "" : ". Accounts mentioned in the original post can also reply."), entities: [] },
 					},
 				},
 			],
@@ -542,7 +543,7 @@ function plainTweet(p: PostRow, withTypename: boolean): Record<string, unknown> 
 		core: { user_results: { result: userResult(p.author) } },
 		edit_control: editControl(p),
 		...(p.conversation_policy
-			? { conversation_control: { policy: p.conversation_policy, conversation_owner_results: { result: { __typename: "User", legacy: { screen_name: p.conversation_owner } } } } }
+			? { conversation_control: { policy: p.conversation_policy === "CountryOfOrigin" ? "Co" : p.conversation_policy, conversation_owner_results: { result: { __typename: "User", legacy: { screen_name: p.conversation_owner } } } }, ...(["Country", "CountryOfOrigin"].includes(p.conversation_policy) ? { conversation_control_details: { mode: p.conversation_policy, allowed_country_codes: p.conversation_selections ?? [] } } : {}) }
 			: {}),
 		grok_analysis_button: false,
 		grok_annotations: {},

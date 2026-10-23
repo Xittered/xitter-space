@@ -8,6 +8,7 @@ import { automationHandlers } from "./automation";
 import { analyticsHandlers } from "./analytics";
 import { bookmarkFolderHandlers } from "./bookmark-folders";
 import { communityHandlers } from "./communities";
+import { conversationSettings, replyControl, ReplyControlError } from "./reply-controls";
 import { countryName, regionName } from "./countries";
 import { gifHandlers } from "./gifs";
 import { listHandlers } from "./lists";
@@ -356,7 +357,7 @@ const createTweet: Handler = async (viewer, vars) => {
 		return { data: { create_tweet: { tweet_results: { result: tweetResult((await getPost(viewer.id, previous))!, false) } } } };
 	}
 	if (replyTo !== undefined && !isId(replyTo)) throw new PostError("Invalid post id.", 144);
-	id = await createPost(viewer.id, text, { replyToId: replyTo, quoteId, source: viewer.postSource, communityId, placeId: placeById(vars.geo?.place_id) ? vars.geo.place_id : undefined, replyPolicy: ["Community", "ByInvitation", "Verified"].includes(vars.conversation_control?.mode) ? vars.conversation_control.mode : undefined });
+	id = await createPost(viewer.id, text, { replyToId: replyTo, quoteId, source: viewer.postSource, communityId, placeId: placeById(vars.geo?.place_id) ? vars.geo.place_id : undefined, replyPolicy: vars.conversation_control?.mode, replySelections: vars.conversation_control?.allowed_country_codes });
 	if (sharedConversation) {
 		try {
 			await sql`update posts set conversation_card_post_id = ${sharedConversation.id}::bigint, sensitive = ${!!sharedConversation.sensitive} where id = ${id}::bigint`;
@@ -832,8 +833,22 @@ const handlers: Record<string, Handler> = {
 		const [row] = await sql`select 1 from highlights where user_id = ${v.id}::bigint and post_id = ${id}::bigint`;
 		return { data: { tweet_result_by_rest_id: { result: { __typename: "Tweet", id: Buffer.from(`Tweet:${id}`).toString("base64"), rest_id: id, highlights_info: { highlighted: !!row } } } } };
 	},
-	// who-can-reply choices beyond the built-in ones: none here
-	ConversationControlsQuery: () => ({ data: { get_conversation_control_settings: { settings: [] } } }),
+	ConversationControlsQuery: () => conversationSettings(),
+	ConversationControlChange: async (viewer, vars) => {
+		const id = postId(vars);
+		const control = replyControl(vars.mode, vars.allowed_country_codes);
+		const rows = await sql`update posts set reply_policy = ${control.policy}, reply_selections = ${sql.array(control.selections, "TEXT")}, reply_allowed_values = ${sql.array(control.values, "TEXT")}
+			where id = ${id}::bigint and user_id = ${viewer.id}::bigint and conversation_id = id returning id`;
+		if (!rows.length) throw new PostError("You can only change reply controls on your own conversation.", 144);
+		return { data: { conversation_control_change: { __typename: "ConversationControlChangeResult", tweet_results: { result: tweetResult((await getPost(viewer.id, id))!) } } } };
+	},
+	ConversationControlDelete: async (viewer, vars) => {
+		const id = postId(vars);
+		const rows = await sql`update posts set reply_policy = null, reply_selections = '{}', reply_allowed_values = '{}'
+			where id = ${id}::bigint and user_id = ${viewer.id}::bigint and conversation_id = id returning id`;
+		if (!rows.length) throw new PostError("You can only change reply controls on your own conversation.", 144);
+		return { data: { conversation_control_delete: { __typename: "ConversationControlDeleteResult", tweet_results: { result: tweetResult((await getPost(viewer.id, id))!) } } } };
+	},
 	CreateHighlight: async (v, vars) => ({ data: { tweet_highlights_put: { success: await setHighlight(v.id, postId(vars), true) } } }),
 	DeleteHighlight: async (v, vars) => ({ data: { tweet_highlights_delete: { success: await setHighlight(v.id, postId(vars), false) } } }),
 
@@ -1146,7 +1161,7 @@ export async function runOperation(name: string, viewer: Viewer, vars: Vars): Pr
 		if (e instanceof ChatError) return Response.json({ errors: [{ message: e.message, code: e.code }], data: {} });
 		// the main client takes the code from extensions and shows the message
 		// after its first ": ", as in X's "_Missing: No status found with that ID."
-		if (e instanceof PostError || e instanceof articles.ArticleError) {
+		if (e instanceof PostError || e instanceof ReplyControlError || e instanceof articles.ArticleError) {
 			const missing = e.code === 144;
 			return Response.json({
 				errors: [{ message: `${missing ? "_Missing" : "Error"}: ${e.message}`, code: e.code, kind: missing ? "NotFound" : "Validation",
