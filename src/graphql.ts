@@ -9,7 +9,7 @@ import { analyticsHandlers } from "./analytics";
 import { bookmarkFolderHandlers } from "./bookmark-folders";
 import { communityHandlers } from "./communities";
 import { conversationSettings, replyControl, ReplyControlError } from "./reply-controls";
-import { countryName, regionName } from "./countries";
+import { countryDisplayName, countryName, regionName } from "./countries";
 import { gifHandlers } from "./gifs";
 import { listHandlers } from "./lists";
 import { placeById } from "./places";
@@ -730,7 +730,7 @@ const handlers: Record<string, Handler> = {
 						about_profile: {
 							affiliate_username: user.org?.screen_name ?? null,
 							account_based_in: extra.based_in_override ?? basedIn(extra.country, extra.location_pref),
-							...(extra.signup_country && countryName(extra.signup_country) ? { created_country: countryName(extra.signup_country), created_country_accurate: true } : {}),
+							...(extra.signup_country ? { created_country: countryDisplayName(extra.signup_country), created_country_accurate: true } : {}),
 							...(extra.source ? { source: extra.source } : {}),
 							learn_more_url: `${PUBLIC_ORIGIN}/rules`,
 							location_accurate: true,

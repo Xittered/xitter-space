@@ -39,7 +39,7 @@ import { switchActions } from "./feature-switches";
 import { moneyActions } from "./money-admin";
 import { AFFILIATION_LIMIT } from "./org-manage";
 import { staffGate } from "./staff-access";
-import { countryCode, countryName } from "./countries";
+import { countryCode, countryDisplayName } from "./countries";
 import { GRANTABLE, PERMISSIONS, RANK, type Role, allows, mayRun, permissionOf, rolePermissions } from "./staff-permissions";
 
 export class AdminError extends Error {
@@ -399,7 +399,7 @@ const ACTIONS: Record<string, Action> = {
 				join login_events other on other.ip = mine.ip and other.user_id <> mine.user_id and other.created_at > now() - interval '90 days'
 				join users u on u.id = other.user_id
 				where mine.user_id = ${id}::bigint and mine.ip is not null and mine.created_at > now() - interval '90 days' limit 20`;
-			u.joined_from = u.signup_country ? (countryName(u.signup_country) ?? u.signup_country) : "";
+			u.joined_from = u.signup_country ? countryDisplayName(u.signup_country) : "";
 			return { user: u, invited, log, alts, strikes, next_step: ladder.length ? ladder[Math.min(strikes + 1, ladder.length) - 1] : 0 };
 		},
 	},
@@ -428,9 +428,8 @@ const ACTIONS: Record<string, Action> = {
 			// the country after the date joined in About this account; blank hides it
 			if (typeof b.joined_from === "string") {
 				const value = b.joined_from.trim();
-				const code = value ? countryCode(value) : null;
-				if (code === undefined) throw new AdminError("Joined from takes a country name or its two-letter code, like SE.");
-				changes.signup_country = code;
+				if ([...value].length > 60) throw new AdminError("Joined from is at most 60 characters.");
+				changes.signup_country = value ? countryCode(value) ?? value : null;
 			}
 			if (!Object.keys(changes).length) return {};
 			if (changes.screen_name) {

@@ -42,6 +42,11 @@ export function countryCode(input: string): string | undefined {
 	return COUNTRY_CODES.get(input.trim().toLowerCase());
 }
 
+export function countryDisplayName(value: string): string {
+	const code = countryCode(value);
+	return code ? countryName(code) ?? value : value;
+}
+
 // every country a trend location can be, by name
 export const allCountries = (): { code: string; name: string }[] =>
 	[...REGION_OF.keys()].flatMap((code) => (countryName(code) ? [{ code, name: countryName(code)! }] : [])).sort((a, b) => a.name.localeCompare(b.name));
