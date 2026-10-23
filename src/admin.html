@@ -32,6 +32,8 @@
 	h1 { margin: 0 0 16px; font-size: 22px; }
 	h2 { margin: 24px 0 10px; font-size: 17px; }
 	.bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+	/* else a display rule like .bar's above shows what's meant to be hidden (the bulk bars) */
+	[hidden] { display: none !important; }
 	input, select, textarea { padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: inherit; font: inherit; }
 	input:focus, select:focus, textarea:focus { outline: 2px solid var(--blue); border-color: transparent; }
 	textarea { width: 100%; min-height: 70px; resize: vertical; }
@@ -268,6 +270,7 @@ async function route() {
 	main.innerHTML = '<div class="empty">Loading…</div>';
 	try {
 		if (page === "user" && arg) await renderUser(main, arg);
+		else if (name === "media") await RENDER.media(main, arg);
 		else await RENDER[name](main);
 	} catch (e) {
 		main.innerHTML = '<div class="empty">' + esc(e.message) + "</div>";
@@ -473,9 +476,10 @@ const RENDER = {
 		};
 	},
 
-	async media(main) {
+	async media(main, user) {
 		let offset = 0;
-		main.innerHTML = '<h1>Media</h1><p class="dim small">Newest first. Deleting removes the file from every post and profile that uses it.</p>' +
+		main.innerHTML = (user ? '<p><a href="#user/' + esc(user) + '">← Account</a> · <a href="#media">All media</a></p><h1>Media from <span id="mwho">this account</span></h1>' : "<h1>Media</h1>") +
+			'<p class="dim small">Newest first. Deleting removes the file from every post and profile that uses it.</p>' +
 			(can("deleteMedia") ? '<div class="bar" id="mbulk" hidden><span class="small" id="mpicked"></span><button class="btn danger" id="mdel">Delete selected</button></div>' : "") +
 			'<p class="small" id="mresult" role="status"></p><div class="mediagrid" id="grid"></div><div class="row" style="margin-top:16px"><button class="btn" id="more">Show more</button></div>';
 		const mpicked = () => [...main.querySelectorAll("[data-mpick]:checked")].map((c) => c.dataset.mpick);
@@ -505,13 +509,14 @@ const RENDER = {
 			$("#mdel").disabled = false;
 		};
 		const load = async () => {
-			const { media } = await api("media", { offset });
+			const { media } = await api("media", { offset, ...(user ? { user } : {}) });
 			offset += media.length;
+			if (user && media[0] && $("#mwho")) $("#mwho").textContent = "@" + media[0].screen_name;
 			$("#grid").insertAdjacentHTML("beforeend", media.map((m) =>
 				'<div class="box" data-media="' + esc(m.id) + '"><a href="/media/' + esc(m.id) + '" target="_blank" class="thumb">' +
 				(m.state === "ready" || m.kind !== "video" ? '<img alt="" loading="lazy" src="/media/' + (m.kind === "video" ? "poster/" + esc(m.id) + ".jpg" : esc(m.id)) + '">' : '<span class="dim small">' + esc(m.state) + "</span>") +
 				(m.kind === "video" ? '<span class="icon play">play_circle</span>' : "") + "</a>" +
-				'<div class="small" style="margin-top:8px"><a href="#user/' + esc(m.user_id) + '">@' + esc(m.screen_name) + '</a> <span class="dim">· ' + (m.size < 1048576 ? Math.ceil(m.size / 1024) + " KB" : (m.size / 1048576).toFixed(1) + " MB") + " · " + esc(when(m.created_at)) + "</span>" + (m.post_id ? "" : ' <span class="dim">· not in a post</span>') + "</div>" +
+				'<div class="small" style="margin-top:8px"><a href="#user/' + esc(m.user_id) + '">@' + esc(m.screen_name) + '</a> <span class="dim">· ' + (m.size < 1048576 ? Math.ceil(m.size / 1024) + " KB" : (m.size / 1048576).toFixed(1) + " MB") + " · " + esc(when(m.created_at)) + "</span>" + (m.avatar ? ' <span class="dim">· profile picture</span>' : m.banner ? ' <span class="dim">· banner</span>' : m.post_id ? "" : ' <span class="dim">· not in a post</span>') + "</div>" +
 				(can("deleteMedia") ? '<div class="row" style="margin-top:8px"><label class="row small"><input type="checkbox" data-mpick="' + esc(m.id) + '"> Select</label><button class="btn danger" data-del>Delete</button></div>' : "") + "</div>").join(""));
 			if (!media.length && !offset) $("#grid").outerHTML = '<div class="empty">No uploads yet.</div>';
 			if (media.length < 60) $("#more")?.remove();
@@ -1585,7 +1590,11 @@ async function renderUser(main, id) {
 		'<p><a href="#users">← Users</a></p>' + person(u) +
 		'<p class="dim small">Joined ' + esc(when(u.created_at)) + " · last sign-in " + esc(when(u.last_seen_at)) + " · " + u.posts + " posts · " + u.followers + " followers · " + u.sessions + " active sessions" +
 		(u.invite_code ? " · invite " + '<span class="code">' + esc(u.invite_code) + "</span>" : u.invited_by ? " · invited" : "") + (u.invited_by ? " from @" + esc(u.invited_by) : "") +
-		(u.org ? " · affiliate of @" + esc(u.org) : "") + ' · <a href="/' + esc(u.screen_name) + '" target="_blank">open profile</a></p>' +
+		(u.org ? " · affiliate of @" + esc(u.org) : "") + ' · <a href="/' + esc(u.screen_name) + '" target="_blank">open profile</a>' +
+		// straight to the files, instead of searching the Media page for them
+		(u.avatar_url ? ' · <a href="' + esc(u.avatar_url) + '" target="_blank">profile picture</a>' : "") +
+		(u.banner_url ? ' · <a href="' + esc(u.banner_url) + '" target="_blank">banner</a>' : "") +
+		(can("media") ? ' · <a href="#media/' + esc(u.id) + '">all media</a>' : "") + "</p>" +
 		(u.instance ? '<div class="box" style="margin-bottom:16px">This account lives on <b>' + esc(u.instance) + "</b>, which manages its profile, password and role. Here you can moderate it: suspend it, hide its posts or delete the copy.</div>" : "") +
 		'<div class="grid2">' +
 		// profile

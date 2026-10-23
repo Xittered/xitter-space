@@ -469,8 +469,11 @@ export const toolActions: Record<string, Action> = {
 
 	media: {
 		role: "support",
-		run: async (_a, b) => ({ media: await sql`select m.id::text, m.user_id::text, u.screen_name, m.kind, m.mime, m.size, m.state, m.created_at, m.post_id::text
-			from media m join users u on u.id = m.user_id order by m.id desc limit 60 offset ${Math.max(0, Number(b.offset) || 0)}` }),
+		// everything, or one account's uploads (Users > an account > media)
+		run: async (_a, b) => ({ media: await sql`select m.id::text, m.user_id::text, u.screen_name, m.kind, m.mime, m.size, m.state, m.created_at, m.post_id::text,
+				u.avatar_url = '/media/' || m.id as avatar, u.banner_url = '/media/banner/' || m.id as banner
+			from media m join users u on u.id = m.user_id ${b.user ? sql`where m.user_id = ${idOf(b.user)}::bigint` : sql``}
+			order by m.id desc limit 60 offset ${Math.max(0, Number(b.offset) || 0)}` }),
 	},
 	deleteMedia: {
 		role: "moderator",
