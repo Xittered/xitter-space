@@ -51,6 +51,7 @@ const ALWAYS = [
 export function hideCss(): string {
 	const off = (Object.keys(BY_FEATURE) as Feature[]).filter((f) => !feature(f)).flatMap((f) => BY_FEATURE[f]);
 	return `${[...ALWAYS, ...off].join(",")}{display:none!important}
+html[data-xitter-full] [data-testid="primaryColumn"] > :not(#xitter-pane){display:none!important}
 #xitter-announcement{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;background:var(--xt-accent-fill,var(--xt-accent,#1d9bf0));color:#fff;font:15px TwitterChirp,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 #xitter-announcement .xa-body{flex:1;min-width:0;display:grid;gap:10px}
 #xitter-announcement .xa-text{white-space:pre-wrap;overflow-wrap:break-word}
@@ -75,17 +76,26 @@ const ROBOT = "M11 2h2v3h5a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 
 const UPLOAD = "M440-320v-326L336-542l-56-58 200-200 200 200-56 58-104-104v326h-80ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z";
 // Material Symbols "public"
 const PALETTE = "M480-80q-82 0-155-31.5t-127.5-86Q143-252 111.5-325T80-480q0-83 32.5-156t88-127Q256-817 330-848.5T488-880q80 0 151 27.5t124.5 76q53.5 48.5 85 115T880-518q0 115-70 176.5T640-280h-74q-9 0-12.5 5t-3.5 11q0 12 15 34.5t15 51.5q0 50-27.5 74T480-80Zm0-400Zm-220 40q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm120-160q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm200 0q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17Zm120 160q26 0 43-17t17-43q0-26-17-43t-43-17q-26 0-43 17t-17 43q0 26 17 43t43 17ZM480-160q9 0 14.5-5t5.5-13q0-14-15-33t-15-57q0-42 29-67t71-25h70q66 0 113-38.5T800-518q0-121-92.5-201.5T488-800q-136 0-232 93t-96 227q0 133 93.5 226.5T480-160Z";
+// the X Money mark (money.ts): an outlined, slanted S with a bar above and below;
+// solid for the side bar while its page is open, as X fills its own icons
+export const MONEY_ICON = "M9.69 5.11L10.04 3.60L15.04 3.60L14.76 4.80L18.46 4.80L17.31 9.80L15.63 9.80L16.33 10.13L17 10.66L17.52 11.33L17.77 11.85L17.94 12.41L18.04 13.32L17.95 14.26L17.78 14.90L17.53 15.53L17.21 16.14L16.58 17L16.09 17.52L15.55 17.98L14.96 18.39L14.34 18.72L13.69 18.99L13.27 20.80L8.27 20.80L8.61 19.30L4.61 19.30L5.77 14.30L7.74 14.30L7.05 13.97L6.37 13.44L6.01 13L5.61 12.25L5.38 11.39L5.34 10.78L5.38 10.15L5.60 9.20L5.85 8.57L6.37 7.66L6.80 7.10L7.29 6.58L7.83 6.12L8.42 5.71L9.04 5.38ZM13.13 5.15L11.23 5.15L10.95 6.36L10.28 6.45L9.71 6.63L8.98 7L8.48 7.37L7.89 7.96L7.52 8.46L7.16 9.18L7 9.74L6.93 10.60L6.98 11L7.21 11.65L7.41 11.98L7.66 12.27L7.96 12.52L8.30 12.72L8.79 12.90L9.51 13L13.55 13.01L13.89 13.11L14.17 13.30L14.44 13.71L14.50 14.06L14.46 14.43L14.23 14.97L13.97 15.29L13.65 15.55L13.09 15.80L12.68 15.85L6.96 15.85L6.52 17.75L10.52 17.75L10.18 19.25L12.08 19.25L12.42 17.74L13.10 17.65L13.67 17.47L14.40 17.10L14.90 16.73L15.49 16.14L15.85 15.64L16.21 14.92L16.38 14.36L16.45 13.50L16.39 13.10L16.17 12.45L15.97 12.12L15.71 11.83L15.41 11.58L15.07 11.38L14.58 11.20L13.87 11.10L9.83 11.09L9.34 10.91L9.10 10.68L8.94 10.39L8.88 10.04L8.91 9.67L9.15 9.13L9.56 8.67L9.91 8.44L10.29 8.30L10.70 8.25L16.12 8.25L16.55 6.35L12.85 6.35Z";
+export const MONEY_ICON_FILLED = "M10.80 4.20L14 4.20L13.65 5.70L17.65 5.70L16.92 8.90L10.41 8.91L10.11 9.01L9.92 9.13L9.76 9.29L9.60 9.57L9.55 9.87L9.62 10.14L9.80 10.34L10.06 10.44L14.06 10.45L14.86 10.56L15.32 10.72L15.90 11.04L16.25 11.34L16.70 11.92L16.97 12.53L17.11 13.30L17.09 14.01L16.90 14.84L16.69 15.35L16.42 15.85L16.09 16.32L15.72 16.76L15.29 17.16L14.83 17.51L14.33 17.81L13.82 18.05L12.94 18.31L12.51 20.20L9.31 20.20L9.72 18.40L5.42 18.40L6.16 15.20L12.96 15.19L13.27 15.09L13.46 14.97L13.68 14.72L13.78 14.53L13.83 14.23L13.76 13.96L13.58 13.76L13.32 13.66L9.32 13.65L8.52 13.54L8.06 13.38L7.48 13.06L6.94 12.56L6.67 12.18L6.41 11.57L6.27 10.80L6.29 10.09L6.39 9.57L6.56 9.05L6.96 8.25L7.28 7.78L7.66 7.34L8.09 6.94L8.55 6.59L9.04 6.29L9.56 6.05L10.43 5.79Z";
 const TONE = "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 1.8v14.4a7.2 7.2 0 0 0 0-14.4z";
 const CAT = "M5 3.5 9.2 7.6A9 9 0 0 1 12 7.2a9 9 0 0 1 2.8.4L19 3.5V12a7 7 0 0 1-14 0V3.5Zm4.5 8.3a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2Zm5 0a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2Z";
 const KEY = "M280-400q-33 0-56.5-23.5T200-480q0-33 23.5-56.5T280-560q33 0 56.5 23.5T360-480q0 33-23.5 56.5T280-400Zm0 160q-100 0-170-70T40-480q0-100 70-170t170-70q67 0 121.5 33t86.5 87h352l120 120-180 180-80-60-80 60-85-60h-47q-32 54-86.5 87T280-240Zm0-80q56 0 98.5-34t56.5-86h125l58 41 82-61 71 55 75-75-40-40H435q-14-52-56.5-86T280-640q-66 0-113 47t-47 113q0 66 47 113t113 47Z";
 const GLOBE = "M480-80q-83 0-156-31.5T197-197q-54-54-85.5-127T80-480q0-83 31.5-156T197-763q54-54 127-85.5T480-880q83 0 156 31.5T763-763q54 54 85.5 127T880-480q0 83-31.5 156T763-197q-54 54-127 85.5T480-80Zm-40-82v-78q-33 0-56.5-23.5T360-320v-40L168-552q-3 18-5.5 36t-2.5 36q0 121 79.5 212T440-162Zm276-102q41-45 62.5-100.5T800-480q0-98-54.5-179T600-776v16q0 33-23.5 56.5T520-680h-80v80q0 17-11.5 28.5T400-560h-80v80h240q17 0 28.5 11.5T600-440v120h40q26 0 47 15.5t29 40.5Z";
 // Every link is a tab on the account pages. `where` adds it to the client too:
 // the More menu, Settings > Your account, or both. The menu keeps only what
-// someone may need to act on; the rest live in Settings.
-export type MenuLink = { href: string; text: string; description: string; icon: string; viewBox?: string; where: "menu" | "settings" | "both" | "tabs" };
+// someone may need to act on; the rest live in Settings. "nav" is an entry of
+// its own in the side bar, its page filling the main column.
+export type MenuLink = { href: string; text: string; description: string; icon: string; iconOn?: string; viewBox?: string; where: "menu" | "settings" | "both" | "tabs" | "nav" };
 export async function menuLinks(userId: string): Promise<MenuLink[]> {
 	const links: MenuLink[] = [];
 	const s = settings();
+	if (feature("money")) {
+		links.push({ href: "/account/money", text: "Money", description: "Send money to other accounts.", icon: MONEY_ICON, iconOn: MONEY_ICON_FILLED, where: "nav" });
+		links.push({ href: "/account/merchant", text: "X Money", description: "Merchant mode: payments to your organisation read as purchases.", icon: MONEY_ICON, where: "settings" });
+	}
 	links.push({ href: "/account/apps", text: "Connected apps", description: "Review and remove apps authorized to use your account.", icon: CODE, viewBox: "0 -960 960 960", where: "settings" });
 	if (s.invite_quota.enabled && s.signup_mode === "invite")
 		links.push({ href: "/account/invites", text: "Invites", description: `Invite people you know to ${s.instance_name}.`, icon: TICKET, where: "both" });
@@ -227,10 +237,18 @@ export const TIDY_SCRIPT = `(function(){
 	// /account/<page> in a frame where the client's own screen would be (its
 	// "page doesn't exist" pane, which any settings path it doesn't know gets)
 	var OWN="/settings/xitter/";
+	// the side bar's own entries (where "nav") open on a path of the client's
+	// own instead, which it answers with its not-found page in the main column
+	var FULL={"/i/xmoney":"/account/money"};
+	// and the pages under it (a payment: /i/xmoney/p/<id>)
+	function fullOf(p){for(var k in FULL)if(p===k||p.indexOf(k+"/")===0)return FULL[k]+p.slice(k.length)}
+	function full(p){for(var k in FULL)if(p===FULL[k]||p.indexOf(FULL[k]+"/")===0)return k+p.slice(FULL[k].length)}
 	function own(href){
 		var u=new URL(href,location.href);
+		if(full(u.pathname))return full(u.pathname)+u.search;
 		return u.pathname.indexOf("/account/")===0?OWN+u.pathname.slice(9)+u.search:u.pathname+u.search+u.hash;
 	}
+	function framed(p){return p.indexOf(OWN)===0?"/account/"+p.slice(OWN.length):fullOf(p)||null}
 	// the client follows the address on popstate, so this moves it without a reload
 	function go(path,replace){
 		if(location.pathname+location.search+location.hash===path)return;
@@ -253,17 +271,26 @@ export const TIDY_SCRIPT = `(function(){
 		var leaf=[].find.call(h.querySelectorAll("span"),function(s){return !s.childElementCount&&s.firstChild&&s.firstChild.nodeType===3});
 		if(leaf&&leaf.firstChild.nodeValue!==name)leaf.firstChild.nodeValue=name;
 	}
+	var since=0;
 	function pane(){
-		var p=location.pathname,f=document.getElementById("xitter-pane");
-		if(p.indexOf(OWN)!==0){if(f)f.remove();return}
-		var want="/account/"+p.slice(OWN.length)+location.search;
+		var p=location.pathname,f=document.getElementById("xitter-pane"),base=framed(p);
+		document.documentElement.toggleAttribute("data-xitter-full",!!(base&&fullOf(p)&&f&&f.hasAttribute("data-col")));
+		if(!base){if(f)f.remove();since=0;return}
+		var want=base+location.search;
 		var err=document.querySelector('[data-testid="error-detail"]');
 		if(f&&f.getAttribute("data-src")!==want){f.setAttribute("data-src",want);f.contentWindow.location.replace(want)}
 		if(f&&f.title&&document.title!==f.title)document.title=f.title;
 		if(f)heading(f);
-		if(!err)return;
-		err.style.display="none";
-		if(f&&f.parentNode===err.parentNode)return;
+		// should the client draw no not-found page on a side bar path, the frame
+		// takes the main column itself once the client has settled
+		var col=!err&&fullOf(p)&&document.querySelector('[data-testid="primaryColumn"]');
+		if(col&&!f){
+			if(!since){since=Date.now();setTimeout(pane,1000)}
+			if(Date.now()-since<1000)return;
+		}
+		if(!err&&!col)return;
+		if(err)err.style.display="none";
+		if(f&&(err?f.parentNode===err.parentNode:f.hasAttribute("data-col")))return;
 		if(f)f.remove();
 		f=document.createElement("iframe");
 		f.id="xitter-pane";f.src=want;f.setAttribute("data-src",want);
@@ -290,7 +317,8 @@ export const TIDY_SCRIPT = `(function(){
 			fit();
 			if(window.ResizeObserver)new ResizeObserver(fit).observe(d.body);
 		});
-		err.parentNode.insertBefore(f,err);
+		if(err)err.parentNode.insertBefore(f,err);
+		else{f.setAttribute("data-col","");col.insertBefore(f,col.firstChild);document.documentElement.setAttribute("data-xitter-full","")}
 	}
 	// X's old sign-up flow talks to its servers; ours is in the dialog on the signed-out home page
 	function ownScreens(){
@@ -354,6 +382,41 @@ export const TIDY_SCRIPT = `(function(){
 			var box=row.cloneNode(true);
 			copy(box.querySelector('a[href="/settings"]'),l);
 			row.parentNode.insertBefore(box,row);
+		});
+	}
+	// the side bar's entries: a copy of its Profile link, placed above it
+	function navLinks(){
+		var items=(T.links||[]).filter(function(l){return l.where==="nav"});
+		var nav=document.querySelector('header[role="banner"] nav');
+		var tpl=nav&&nav.querySelector('a[data-testid="AppTabBar_Profile_Link"]');
+		if(!items.length||!tpl)return;
+		// the bar shows labels only when it is wide; a copy made the other way is made again
+		var shape=tpl.innerText.trim()?"wide":"narrow";
+		items.forEach(function(l){
+			var a=nav.querySelector('a[data-xitter-nav="'+l.href+'"]');
+			if(a&&a.getAttribute("data-shape")!==shape){a.remove();a=null}
+			if(!a){
+				a=tpl.cloneNode(true);
+				a.removeAttribute("data-testid");a.removeAttribute("aria-current");
+				a.setAttribute("data-xitter-nav",l.href);a.setAttribute("data-shape",shape);a.setAttribute("aria-label",l.text);
+				leave(a,l.href);
+				var label=[].find.call(a.querySelectorAll("span"),function(n){return !n.childElementCount&&n.textContent.trim()});
+				if(label)label.textContent=l.text;
+				var svg=a.querySelector("svg"),path=svg&&svg.querySelector("path");
+				if(path){[].slice.call(svg.querySelectorAll("path")).slice(1).forEach(function(p){p.remove()});path.removeAttribute("fill-rule");path.removeAttribute("clip-rule");path.setAttribute("d",l.icon);if(l.viewBox)svg.setAttribute("viewBox",l.viewBox)}
+				// the client hovers the pill inside the link from script, which the copy doesn't get
+				var pill=a.firstElementChild||a;
+				a.addEventListener("mouseenter",function(){pill.style.backgroundColor=getComputedStyle(document.body).color.replace("rgb(","rgba(").replace(")",", 0.1)")});
+				a.addEventListener("mouseleave",function(){pill.style.backgroundColor=""});
+				tpl.parentNode.insertBefore(a,tpl);
+			}
+			// bold while its page is open, as the client marks its own (and not
+			// because the Profile link was copied while the profile was open)
+			var at=own(l.href).split("?")[0],on=location.pathname===at||location.pathname.indexOf(at+"/")===0;
+			if(on)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");
+			var icon=a.querySelector("svg path"),d=on&&l.iconOn||l.icon;
+			if(icon&&icon.getAttribute("d")!==d)icon.setAttribute("d",d);
+			[].forEach.call(a.querySelectorAll("span"),function(n){var w=on?"700":"400";if(n.style.fontWeight!==w)n.style.fontWeight=w});
 		});
 	}
 	function accountRows(){
@@ -438,6 +501,7 @@ export const TIDY_SCRIPT = `(function(){
 		pane();
 		footer();
 		menuLinks();
+		navLinks();
 		accountRows();
 		twoFactorRow();
 		navWidth();

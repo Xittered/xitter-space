@@ -25,6 +25,7 @@ import { PUBLIC_ORIGIN } from "./config";
 import { legacyUser } from "./model";
 import { patchText } from "./patch";
 import { PWA_SCRIPT, pwaHead } from "./pwa";
+import { MONEY_UI_CSS, MONEY_UI_SCRIPT } from "./money-ui";
 
 // account settings as the client expects them
 export function settingsFor(user: User): Record<string, unknown> {
@@ -277,6 +278,7 @@ ${PRONOUNS_SCRIPT}
 ${FLAG_PICKER_SCRIPT}
 ${signedIn ? STICKER_PICKER_SCRIPT : ""}
 ${signedIn ? CONVERSATION_CARD_SCRIPT : ""}
+${signedIn ? MONEY_UI_SCRIPT : ""}
 ${POST_CONTEXT_SCRIPT}
 ${BADGES_SCRIPT}
 ${signedIn ? THEME_SCRIPT : ""}
@@ -322,6 +324,7 @@ ${FLAG_PICKER_CSS}
 ${PRONOUNS_CSS}
 ${STICKER_PICKER_CSS}${bootAccentCss(accent)}${theme ? bootCss(theme, paint) : ""}
 ${CONVERSATION_CARD_CSS}
+${user ? MONEY_UI_CSS : ""}
 [data-testid="sidebarColumn"] div:has(> [data-testid="emptyState"]),[data-testid="sidebarColumn"] div:has(> div > aside) ~ div:empty{display:none}</style>
 </head><body><div id="react-root" style="height:100%;display:flex;"></div>
 <script>window.__INITIAL_STATE__=${inline(initialState(user, build.featureSwitch, inCommunity, educationFlags, accent))};window.__META_DATA__=${inline(meta)};</script>

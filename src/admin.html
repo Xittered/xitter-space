@@ -222,6 +222,7 @@ const PAGES = {
 	oauth: { icon: "key", title: "OAuth apps" },
 	federation: { icon: "hub", title: "Federation" },
 	hosting: { icon: "dns", title: "Hosted instances", needs: "hostedInstances" },
+	money: { icon: "payments", title: "Money", needs: "moderator" },
 	settings: { icon: "tune", title: "Settings" },
 	errors: { icon: "bug_report", title: "Errors", needs: "errors" },
 	permissions: { icon: "admin_panel_settings", title: "Staff permissions", needs: "admin" },
@@ -236,7 +237,7 @@ const GROUPS = [
 	["Moderation", ["reports", "appeals", "automod", "posts", "articles", "media"]],
 	["People", ["users", "orgs", "invites", "badges"]],
 	["Content", ["stickers", "hashflags", "topics", "cards"]],
-	["Instance", ["settings", "switches", "email", "apps", "oauth", "federation", "hosting"]],
+	["Instance", ["settings", "switches", "money", "email", "apps", "oauth", "federation"]],
 	["Staff and system", ["permissions", "security", "audit", "errors", "backups", "client"]],
 ];
 function openGroup(g, on) {
@@ -588,6 +589,47 @@ const RENDER = {
 		main.querySelectorAll("[data-del]").forEach((b) => b.onclick = async () => {
 			if (!(await ask("Delete this branded hashtag?"))) return;
 			act(() => api("deleteHashflag", { id: b.dataset.del }), "Deleted").then(route);
+		});
+	},
+
+	async money(main, q = "") {
+		const m = await api("money", { q });
+		const admin = can("saveMoney");
+		const usd = (c) => "$" + (c / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+		const dollars = (c) => String(c / 100);
+		const cards = (list) => '<div class="cards">' + list.map(([k, v]) => '<div class="card"><span>' + esc(k) + "</span><b>" + esc(v) + "</b></div>").join("") + "</div>";
+		const t = m.totals;
+		main.innerHTML = "<h1>Money</h1>" +
+			'<p class="dim">X Money, the instance\'s own play money: accounts send it to each other, ask for it and earn it from likes. It has no cash value. ' +
+			(m.enabled ? "It's on; Settings › Features turns it off." : '<b>It\'s off</b>: Settings › Features turns it on.') + "</p>" +
+			cards([["In circulation", usd(t.circulation)], ["Wallets", t.wallets], ["Payments", t.payments], ["Moved", usd(t.volume)], ["Payments this week", t.payments_week], ["Moved this week", usd(t.volume_week)], ["Paid for likes", usd(t.likes_paid)], ["Open requests", t.open_requests], ["Merchants", t.merchants]]) +
+			'<div class="grid2" style="margin-top:16px">' +
+			'<div class="box"><h2>Settings</h2>' +
+			'<div class="field"><label>Starting balance of a new wallet ($)</label><input id="ms" inputmode="decimal" value="' + esc(dollars(m.settings.starting_cents)) + '"' + (admin ? "" : " disabled") + "></div>" +
+			'<div class="field"><label>Most one payment or request moves ($)</label><input id="mx" inputmode="decimal" value="' + esc(dollars(m.settings.max_transfer_cents)) + '"' + (admin ? "" : " disabled") + "></div>" +
+			'<div class="field"><label>Paid to a post\'s author for each like ($, 0 for none)</label><input id="ml" inputmode="decimal" value="' + esc(dollars(m.settings.like_cents)) + '"' + (admin ? "" : " disabled") + "></div>" +
+			'<p class="dim small">A new starting balance applies to wallets made from now on. Likes pay once per post and account.</p>' +
+			(admin ? '<button class="btn primary" id="msave">Save</button>' : "") + "</div>" +
+			'<div class="box"><h2>Adjust a balance</h2><p class="dim small">Adds money, or takes it away with a minus (never below $0.00).</p>' +
+			'<div class="field"><label>Account</label><input id="mah" placeholder="@username"' + (admin ? "" : " disabled") + "></div>" +
+			'<div class="field"><label>Amount ($)</label><input id="maa" placeholder="20 or -5.00"' + (admin ? "" : " disabled") + "></div>" +
+			(admin ? '<button class="btn" id="madj">Apply</button>' : "") + "</div>" +
+			'<div class="box"><h2>Biggest balances</h2>' + (m.top.length ? '<div class="list">' + m.top.map((u, i) => '<p class="row" style="justify-content:space-between;flex-wrap:nowrap;gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span class="dim small">' + (i + 1) + '.</span> <a target="_blank" href="/' + esc(u.screen_name) + '">' + esc(u.name || u.screen_name) + "</a> " + badge(u) + ' <span class="dim small">@' + esc(u.screen_name) + "</span></span><b>" + usd(u.balance) + "</b></p>").join("") + "</div>" : '<p class="dim small">No wallets yet.</p>') + "</div>" +
+			"</div>" +
+			'<h2>Payments</h2><div class="row" style="margin-bottom:12px"><input id="mq" placeholder="Payments to or from @username" value="' + esc(q) + '" style="flex:1;min-width:200px"><button class="btn" id="mqs">Search</button></div>' +
+			'<div class="scroll">' + (m.recent.length
+				? '<table class="table"><tr><th>When</th><th>From</th><th>To</th><th>Amount</th>' + (m.notes ? "<th>Note</th>" : "") + "<th></th></tr>" +
+					m.recent.map((r) => '<tr><td class="small">' + esc(when(r.created_at)) + '</td><td><a target="_blank" href="/' + esc(r.sender) + '">@' + esc(r.sender) + '</a></td><td><a target="_blank" href="/' + esc(r.recipient) + '">@' + esc(r.recipient) + "</a></td><td><b>" + usd(r.amount) + "</b></td>" + (m.notes ? '<td class="small">' + esc(r.note) + "</td>" : "") + "<td>" +
+						(r.reversed_at ? '<span class="pill suspended">reversed</span>' : admin ? '<button class="btn danger" data-rev="' + esc(r.id) + '">Reverse</button>' : "") + "</td></tr>").join("") + "</table>"
+				: '<div class="empty">No payments' + (q ? " for @" + esc(q) : "") + ".</div>") + "</div>";
+		const again = () => this.money(main, $("#mq").value);
+		if ($("#msave")) $("#msave").onclick = () => act(() => api("saveMoney", { starting: $("#ms").value, max_transfer: $("#mx").value, like: $("#ml").value }), "Money settings saved").then(again);
+		if ($("#madj")) $("#madj").onclick = () => act(async () => { const r = await api("adjustMoney", { handle: $("#mah").value, amount: $("#maa").value }); notice("@" + r.to + " now has " + usd(r.balance)); }).then(again);
+		$("#mqs").onclick = again;
+		$("#mq").onkeydown = (e) => { if (e.key === "Enter") again(); };
+		main.querySelectorAll("[data-rev]").forEach((b) => b.onclick = async () => {
+			if (!(await ask("Reverse this payment? The money goes back to the sender, if the recipient still has it."))) return;
+			act(() => api("reverseTransfer", { id: b.dataset.rev }), "Payment reversed").then(again);
 		});
 	},
 
@@ -1539,7 +1581,7 @@ async function renderUser(main, id) {
 	}
 	const item = (k) => '<button data-page="' + k + '"><span class="icon">' + PAGES[k].icon + "</span>" + esc(PAGES[k].title) + "</button>";
 	$("#nav").insertAdjacentHTML("beforeend", GROUPS.map(([title, keys]) => {
-		const shown = keys.filter((k) => !PAGES[k].needs || can(PAGES[k].needs));
+		const shown = keys.filter((k) => PAGES[k] && (!PAGES[k].needs || can(PAGES[k].needs)));
 		if (!shown.length) return "";
 		return '<div class="group' + (title ? "" : " solo") + '">' +
 			(title ? '<button class="ghead" aria-expanded="false"><span>' + esc(title) + '</span><span class="icon">expand_more</span></button>' : "") +
