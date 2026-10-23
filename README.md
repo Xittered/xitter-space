@@ -15,13 +15,22 @@ copy during setup, and it stays on that machine.
 - Scheduled threads publish together. Failed threads retry; permanent failures
   or exhausted retries return the complete thread to drafts. Each account can
   queue 100 future posts.
-- Who can reply (everyone, followed accounts, verified, mentioned), post views,
+- Who can reply: everyone, accounts you follow, your network (them and the
+  accounts they follow), verified accounts, accounts you mention, or accounts
+  based in countries or regions you pick (several at once, changeable after
+  posting); accounts mentioned in the post can always reply. Post views,
   reposts, likes and quotes lists
 - Images, GIFs and video (converted with ffmpeg), alt text, content warnings on
   media, long-form articles
+- Optional compression for instances short on disk (Admin > Settings > Media
+  storage): photos are shrunk to the size the app shows and saved again as
+  JPEG (PNG when see-through), videos encoded again at the size and quality
+  set there, and only the smaller file is kept. "Compress stored files" does
+  the same for what was uploaded before. Animated images are left alone
 - Profiles with all their tabs, editing, follows, followers, private
   (protected) accounts with follow requests, "About this account" with the
-  country or region it is based in
+  country or region it is based in and where it joined from (staff can set
+  either, including a name of their own)
 - Lists (with banners) and communities (rules, members, moderation tools,
   custom banners, a topic from the instance's topics, community label on posts)
 - Home timeline: a ranked "For you" and a chronological "Following"
@@ -150,7 +159,12 @@ copy during setup, and it stays on that machine.
   badges (blue, gold organisation, grey government organisation or official),
   translator globes (blue translator, gold translator moderator, yellow approver),
   roles, organisations, posts, reports, invites, instance settings,
-  feature switches, announcements, topics, Explore cards and an audit log
+  feature switches, announcements, topics, Explore cards and an audit log.
+  Bulk tools: strike many accounts at once (by handle, optionally with alts
+  seen at the same addresses), hide, mark sensitive or delete many posts, and
+  delete many files, each reporting what worked and what didn't. An account's
+  page links its profile picture, banner and all its uploads; pride flags go
+  up to four per account, in the order picked
 - Staff roles (admin, moderator, support) whose powers an admin chooses: Admin >
   Staff permissions turns each permission (changing standing, deleting posts,
   editing profiles, resetting passwords…) on or off for moderators and support,
@@ -279,12 +293,25 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `MAX_CHAT_MEDIA_MB` | `200` | Maximum encrypted chat attachment size |
 | `SMTP_URL` | unset | Own mail server for sign-up codes, password resets and notifications: `smtp://user:pass@host:587` (STARTTLS) or `smtps://user:pass@host:465`; percent-encode `@` in the user; the host must be the name on the server's certificate |
 | `RESEND_API_KEY` | unset | Resend key, used when `SMTP_URL` isn't set or refused a mail; without either nothing is sent |
-| `MAIL_FROM` | `Xitter <noreply@xit.chococat.lol>` | Sender of that mail (its domain must be the mail server's, or verified in Resend) |
+| `MAIL_FROM` | `"<instance name>" <noreply@xit.chococat.lol>` | Sender of that mail. Set it on your own instance: its domain must be the mail server's, or verified in Resend |
 | `ARCHIVE_DIR`, `ARCHIVE_MAX_MB` | `data/imports`, `1024` | Where uploaded X archives wait while they import, and the largest accepted |
 | `ARCHIVE_MAX_JSON_MB` | `64` | Largest JSON file in an archive (`tweets.js` and its parts) an import reads; it's parsed in memory |
 | `KLIPY_API_KEY` | unset | GIF search through [Klipy](https://klipy.com) (see `src/gifs.ts`); without it or `TENOR_API_KEY` the GIF button is hidden |
 | `TENOR_API_KEY` | unset | GIF search through Tenor's v2 API instead, used when `KLIPY_API_KEY` isn't set |
+| `KLIPY_API_URL`, `TENOR_API_URL` | the providers' v2 APIs | Where GIF search is sent, for a proxy or a test server |
+| `FFMPEG_THREADS` | `2` | Threads each ffmpeg job may use; jobs run at a lower priority beside the server |
+| `PUBLIC_DIR` | `public` | Logos and icons served to everyone |
+| `BACKUP_DIR`, `PG_DUMP` | `data/backups`, `pg_dump` | Where database backups (Admin > Backups) go, and the tool that makes them; `media/` and `data/` need copying separately |
+| `ADMIN_ANY_IP` | unset | `1` opens the admin panel to every address, ignoring the allow-list in its settings (to get back in after locking yourself out) |
+| `GOOGLE_FONTS_CSS_ORIGIN`, `GOOGLE_FONTS_FILE_ORIGIN` | Google's | Where theme fonts are fetched from before this instance serves them |
+| `FEDERATION` | on | `off` stops federating (see [FEDERATION.md](FEDERATION.md)) |
+| `FEDERATION_KEY_FILE` | `data/federation-key.json` | This instance's federation key; back it up |
+| `FEDERATION_REGISTRY_URL` | `instances.json` on this repository's `main` | The list of instances to federate with |
+| `FEDERATION_MEDIA`, `FEDERATION_MEDIA_CACHE_MB` | unset, `64` | `store` keeps other instances' media on disk; otherwise it's fetched on view and the newest kept in memory |
+| `FEDERATION_EVENTS_PER_HOUR`, `FEDERATION_MAX_ACCOUNTS` | `20000`, `100000` | Changes taken from one other instance per hour before its sync pauses, and the most of its accounts this instance takes |
+| `FEDERATION_ALLOW_HTTP` | unset | `1` federates over plain HTTP. For test instances only |
 | `XITTER_VERSION` | `version` in `package.json` | The version this instance reports in `/.well-known/xitter` and compares when an account moves |
+| `XITTER_COMMIT` | read from `.git` | The commit `/.well-known/xitter` shows, for images built without `.git` |
 | `MIGRATION_ALLOW_HTTP`, `MIGRATION_ALLOW_PRIVATE` | unset | `1` lets an account move from an instance over plain HTTP, or on a private network. For test instances only |
 
 Everything else (name, sign-up mode, features, limits, announcement, rules,
@@ -369,6 +396,12 @@ same-origin proxy. The local development realm and the server realm have separat
 record stores: starting a server realm does not transfer local backups.
 
 ## Development
+
+[CONTRIBUTING.md](CONTRIBUTING.md) has the rules for changes and how to run
+the tests; [AGENTS.md](AGENTS.md) explains how the code fits together and what
+to watch out for (it's written for coding agents, and works for people too).
+`sh scripts/ci-local.sh` runs the same checks as CI against a throwaway
+database.
 
 ### Client apps and Community Notes
 
