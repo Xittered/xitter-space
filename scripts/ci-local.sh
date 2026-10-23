@@ -10,7 +10,7 @@ case "${DATABASE_URL:-}" in
 	*test*) ;;
 	*) echo "Set DATABASE_URL to a throwaway database with \"test\" in its name." >&2; exit 1 ;;
 esac
-export PORT="${PORT:-3137}" RATE_LIMITS=off RESEND_API_KEY= SMTP_URL= KLIPY_API_KEY= TENOR_API_KEY=
+export PORT="${PORT:-3137}" RATE_LIMITS=off RESEND_API_KEY= SMTP_URL= KLIPY_API_KEY=
 export TEST_ORIGIN="http://localhost:$PORT" MEDIA_DIR="${MEDIA_DIR:-.ci-media}"
 mkdir -p "$MEDIA_DIR"
 

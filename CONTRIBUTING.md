@@ -33,8 +33,11 @@ AGENTS.md lists everything that must never be committed.
   an existing database (`if not exists`). Every instance migrates on start.
 - New environment variables go in the README's Configuration table, new
   features in its "What works" list.
-- Don't hard-code third-party API keys, accounts or someone else's domain.
-  Read them from the environment, and switch the feature off without them.
+- Don't hard-code private API keys, accounts or someone else's domain. Read
+  them from the environment, and switch the feature off without them. A
+  public client key that an official app or site already ships (like the GIF
+  providers' defaults in `src/gifs.ts`) may be the default, as long as the
+  environment can override it.
 - User-facing text follows X's wording where X has a screen for it, and plain
   English where it doesn't.
 

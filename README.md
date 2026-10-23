@@ -296,9 +296,13 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `MAIL_FROM` | `"<instance name>" <noreply@xit.chococat.lol>` | Sender of that mail. Set it on your own instance: its domain must be the mail server's, or verified in Resend |
 | `ARCHIVE_DIR`, `ARCHIVE_MAX_MB` | `data/imports`, `1024` | Where uploaded X archives wait while they import, and the largest accepted |
 | `ARCHIVE_MAX_JSON_MB` | `64` | Largest JSON file in an archive (`tweets.js` and its parts) an import reads; it's parsed in memory |
-| `KLIPY_API_KEY` | unset | GIF search through [Klipy](https://klipy.com) (see `src/gifs.ts`); without it or `TENOR_API_KEY` the GIF button is hidden |
-| `TENOR_API_KEY` | unset | GIF search through Tenor's v2 API instead, used when `KLIPY_API_KEY` isn't set |
-| `KLIPY_API_URL`, `TENOR_API_URL` | the providers' v2 APIs | Where GIF search is sent, for a proxy or a test server |
+| `GIF_PROVIDER` | `auto` | Instance default provider (`klipy`, `tenor` or `giphy`); users can override it in Settings > GIF provider. Auto prefers configured Klipy, then Tenor, then Giphy |
+| `KLIPY_API_KEY` | unset | Account-specific key from the [Klipy Partner Panel](https://partner.klipy.com/api-keys). This server-proxied integration requires Klipy's prior written approval |
+| `TENOR_API_KEY` | built-in public client key | Tenor API key override; set empty to disable Tenor |
+| `TENOR_API_URL` | `https://api.tenor.com/v1` | Tenor API base URL |
+| `GIPHY_API_KEY` | built-in public client key | Giphy API key override; set empty to disable Giphy |
+| `GIPHY_API_URL` | `https://api.giphy.com/v1/gifs` | Giphy API base URL |
+| `KLIPY_API_URL` | `https://api.klipy.com/v2` | Klipy API base URL, for a proxy or a test server |
 | `FFMPEG_THREADS` | `2` | Threads each ffmpeg job may use; jobs run at a lower priority beside the server |
 | `PUBLIC_DIR` | `public` | Logos and icons served to everyone |
 | `BACKUP_DIR`, `PG_DUMP` | `data/backups`, `pg_dump` | Where database backups (Admin > Backups) go, and the tool that makes them; `media/` and `data/` need copying separately |

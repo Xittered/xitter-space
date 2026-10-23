@@ -19,6 +19,9 @@ const API_HOSTS = ["api", "upload", "caps", "jf"].flatMap((s) => [`${s}.x.com`, 
 const inRegex = (url: string) => url.replace(/[/.]/g, (c) => "\\" + c);
 
 const RULES: [RegExp, string][] = [
+	// The Settings search index is built from X's route list: add our custom GIF
+	// provider page so searching "gif" can open it from the results.
+	[/\blet (\w+)=\(0,[\w$]+\.[\w$]+\)\(\),(\w+)=\[\];(?=for\(let \w+ of \1\)for\(let \w+ of\(\2\.push\()/g, '$&$1.find(group=>group.path==="/settings/account")?.items.push({id:"xitterGifProvider",path:"/settings/xitter/gifs",title:"GIF provider",synonyms:["gif","provider","klipy","tenor","giphy"],isSearchable:true,items:[]});'],
 	[/(Co:\{id:"co",Icon:([\w$]+)\.default,IconSelected:([\w$]+)\.default,label:[^,]+,description:[^,]+,source:"remote",type:"navigate",order:60\})(?!,Country:\{)/g, '$1,Country:{id:"country",Icon:$2.default,IconSelected:$3.default,label:"Country",description:"Only accounts from selected countries can reply",source:"remote",type:"navigate",order:70}'],
 	[/"co"===([\w$]+)\.conversation_control\?\{mode:"CountryOfOrigin",allowed_country_codes:\1\.conversation_control_region_codes\?\?\[\]\}/g, '"country"===$1.conversation_control?{mode:"Country",allowed_country_codes:$1.conversation_control_region_codes??[]}:"co"===$1.conversation_control?{mode:"CountryOfOrigin",allowed_country_codes:$1.conversation_control_region_codes??[]}'],
 	[/"co"===([\w$]+)&&\(([\w$]+)="CountryOfOrigin"\)/g, '("country"===$1?$2="Country":"co"===$1&&($2="CountryOfOrigin"))'],

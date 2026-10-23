@@ -3,6 +3,7 @@
 // replaced whenever the panel saves one.
 
 import { sql } from "./db";
+import { gifAvailable } from "./gifs";
 import { foldGlyphs } from "./fold";
 
 export type SignupMode = "invite" | "open" | "closed";
@@ -122,8 +123,7 @@ export async function loadSettings() {
 }
 
 export const settings = (): Settings => current;
-// GIF search needs a Klipy key; without one the button stays hidden
-export const feature = (f: Feature) => (f === "gifs" && !process.env.KLIPY_API_KEY && !process.env.TENOR_API_KEY ? false : current.features[f] !== false);
+export const feature = (f: Feature) => (f === "gifs" && !gifAvailable() ? false : current.features[f] !== false);
 // the admin's blocked phrases, in any case and through look-alike letters and
 // invisible characters (names.ts); spacing still counts, unlike names
 const phraseForm = (text: string) => foldGlyphs(text).replace(/\p{Cf}/gu, "");
