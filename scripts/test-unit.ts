@@ -11,5 +11,8 @@ for (const name of files) {
 	if (/from\s*["']bun:test["']/.test(await Bun.file(file).text())) units.push(fileURLToPath(file));
 }
 if (!units.length) throw new Error("No unit tests found.");
-const run = Bun.spawn([process.execPath, "test", ...units], { stdin: "inherit", stdout: "inherit", stderr: "inherit" });
+// hosting.ts reads HOSTING_DOMAIN once at import, and an earlier file loads it
+// before test-hosting.ts can set it: the whole run gets the test domain
+const env = { ...process.env, HOSTING_DOMAIN: process.env.HOSTING_DOMAIN ?? "xit.example" };
+const run = Bun.spawn([process.execPath, "test", ...units], { stdin: "inherit", stdout: "inherit", stderr: "inherit", env });
 process.exit(await run.exited);
