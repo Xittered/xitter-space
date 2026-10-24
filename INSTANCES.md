@@ -1,6 +1,6 @@
 # Instances
 
-Generated from [instances.json](instances.json), sequence 21. Edit that file, then run
+Generated from [instances.json](instances.json), sequence 22. Edit that file, then run
 `bun scripts/check-instances.ts --write-md` to update this one.
 
 | Instance | Name | State | Key | Source |
@@ -8,9 +8,9 @@ Generated from [instances.json](instances.json), sequence 21. Edit that file, th
 | [a.aagaming.me](https://a.aagaming.me) | A | federating | `obUhcaAS7l8STOxRhPjs1tWq40B7qVmdwEysNitkpXc` | [code](https://github.com/Xittered/xitter) |
 | [cro.corvine.vip](https://cro.corvine.vip) | CRO | federating | `OJiGKsH5eTlfBzKyWCe2G0uHIOESe6QV-9sSmVP-iVk` | [code](https://github.com/Xittered/xitter) |
 | [giggleshitter.gay](https://giggleshitter.gay) | giggleshitter | federating | `IXb5UsVkUbxH0a_Rub1PEJumKBufBtwwNtM5RZffwB0` | [code](https://github.com/Xittered/xitter) |
-| [jr1.xitter.space](https://jr1.xitter.space) | Xitter Staff | federating | `MtOOU2p-wazLBbp3goandZk5MLD_BPKT9IikJcIFm5c` | [code](https://github.com/Xittered/xitter) |
 | [social.opsex.best](https://social.opsex.best) | Xitter | federating | `aE7RikVEmC2lKQPAkfVtNk1GpJtx87H7PYaLxHxbZTM` | [code](https://github.com/gabytz777/xitter) |
-| [social.pixelatedaria.space](https://social.pixelatedaria.space) | social.pixelatedaria.space | federating | `yTE4xnSExcGTOgq_JAhElkvce0vif-MxTZefmy-8IeY` | [code](https://github.com/xittered/xitter) |
+| [social.pixelatedaria.space](https://social.pixelatedaria.space) | social.pixelatedaria.space | federating | `Y0cHJS-cafemUL2VtqitM9IaETXLYAzy54c1drovxPk` | [code](https://github.com/xittered/xitter) |
+| [testing.xitter.space](https://testing.xitter.space) | Xitter Testing | federating | `MtOOU2p-wazLBbp3goandZk5MLD_BPKT9IikJcIFm5c` | [code](https://github.com/Xittered/xitter) |
 | [twitter.meowing.zip](https://twitter.meowing.zip) | NOT Twitter | federating | `umKV5puos6jxSWboWpvR3vgXcvVB-1EAx7U-nSFAW8E` | [code](https://github.com/10kbcat/xitter) |
 | [x.glitchprod.xyz](https://x.glitchprod.xyz) | Digital Circus | federating | `L2-aSa8he-ufDfTVKQdosl2vW0JyWZMiGae3qhTt1a8` | [code](https://github.com/MDCYT/xitter) |
 | [x.iambrdn.dev](https://x.iambrdn.dev) | xt.brdn | federating | `2AbfXEDcr4aaSA5SY6laQbVSfHWvxK1Pbye9A67H3WI` | [code](https://github.com/braidenhxyz/xitter-compose) |

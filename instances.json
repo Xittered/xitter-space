@@ -1,6 +1,6 @@
 {
 	"version": 1,
-	"sequence": 21,
+	"sequence": 22,
 	"instances": [
 		{
 			"id": "a.aagaming.me",
@@ -24,13 +24,6 @@
 			"state": "active"
 		},
 		{
-			"id": "testing.xitter.space",
-			"name": "Xitter Testing",
-			"source_url": "https://github.com/Xittered/xitter",
-			"public_key": "MtOOU2p-wazLBbp3goandZk5MLD_BPKT9IikJcIFm5c",
-			"state": "active"
-		},
-		{
 			"id": "social.opsex.best",
 			"name": "Xitter",
 			"source_url": "https://github.com/gabytz777/xitter",
@@ -41,7 +34,14 @@
 			"id": "social.pixelatedaria.space",
 			"name": "social.pixelatedaria.space",
 			"source_url": "https://github.com/xittered/xitter",
-			"public_key": "yTE4xnSExcGTOgq_JAhElkvce0vif-MxTZefmy-8IeY",
+			"public_key": "Y0cHJS-cafemUL2VtqitM9IaETXLYAzy54c1drovxPk",
+			"state": "active"
+		},
+		{
+			"id": "testing.xitter.space",
+			"name": "Xitter Testing",
+			"source_url": "https://github.com/Xittered/xitter",
+			"public_key": "MtOOU2p-wazLBbp3goandZk5MLD_BPKT9IikJcIFm5c",
 			"state": "active"
 		},
 		{
