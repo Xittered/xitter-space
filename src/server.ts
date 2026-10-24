@@ -1,5 +1,5 @@
-import { type Viewer, getViewer, parseCookies, csrfCookie } from "./auth";
-import { getClientFile, getClientFilePath } from "./client-cache";
+import { type Viewer, expireSessions, getViewer, parseCookies, csrfCookie } from "./auth";
+import { clientPathAllowed, getClientFile, getClientFilePath, hasClientFile } from "./client-cache";
 import { PORT, PUBLIC_ORIGIN } from "./config";
 import { migrate, sql } from "./db";
 import { knownOperation, runOperation } from "./graphql";
@@ -161,6 +161,13 @@ function staffBlockedPage(reason: string) {
 
 async function serveClient(req: Request, pathname: string): Promise<Response> {
 	const cdnPath = pathname.slice("/abs".length);
+	// a file not in the archive yet is fetched from the CDN and kept: only from
+	// where the client's files live, and not faster than one address loads pages
+	if (!hasClientFile(cdnPath)) {
+		if (!clientPathAllowed(cdnPath)) return new Response("not found", { status: 404 });
+		const h = hit("endpoint", `${requestIp(req) ?? "unknown"}:abs-fetch`);
+		if (!h.ok) return limitedResponse(h);
+	}
 	const ext = cdnPath.split(".").pop() ?? "";
 	const type = MIME[ext] ?? "application/octet-stream";
 	if (ext !== "js" && ext !== "css") {
@@ -269,7 +276,8 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 	if (process.env.LOG_REQUESTS) console.log(`api ${req.method} ${gql >= 0 ? `graphql:${parts[parts.length - 1]}` : path}`);
 	// the client reports its own render errors through telemetry
 	// (not uploads: a binary body isn't URI-encoded text)
-	if (process.env.LOG_REQUESTS === "errors" && req.method === "POST" && !path.includes("/media/upload")) {
+	// (nor the password calls: the log would hold them)
+	if (process.env.LOG_REQUESTS === "errors" && req.method === "POST" && !path.includes("/media/upload") && !/password/.test(path)) {
 		const raw = await req.clone().text();
 		let body = raw;
 		try {
@@ -321,6 +329,15 @@ setInterval(
 			recordError("job", e, { path: "shop checkmark expiry" });
 		}),
 	10 * 60_000,
+).unref();
+// sessions nobody used in months end, whatever their cookie says
+setInterval(
+	() =>
+		expireSessions().catch((e) => {
+			console.error("session expiry failed", e.message);
+			recordError("job", e, { path: "session expiry" });
+		}),
+	6 * 3600_000,
 ).unref();
 await loadSettings();
 await resumeVideos(MEDIA_DIR);
@@ -393,7 +410,15 @@ async function route(req: Request): Promise<Response | undefined> {
 		if (!account) return new Response("suspended", { status: 403 });
 		return server.upgrade(req, { data: { userId } }) ? undefined : new Response("expected a websocket", { status: 400 });
 	}
-	if (p.startsWith("/juicebox/")) return juiceboxProxy(req, p.slice("/juicebox/".length));
+	// the chat app's way to the key backup realm: signed-in accounts only, and
+	// not faster than their messages
+	if (p.startsWith("/juicebox/")) {
+		const viewer = await getViewer(req);
+		if (!viewer) return new Response("sign in first", { status: 401 });
+		const h = hit("dm", viewer.id);
+		if (!h.ok) return limitedResponse(h);
+		return juiceboxProxy(req, p.slice("/juicebox/".length));
+	}
 	// Chat's manifest: the pinned chat build's own, its addresses ours
 	if (p === "/xchat/embed-v1.json") {
 		const base = loadBuild()?.build.meta.xchatEmbedBuild as string | undefined;

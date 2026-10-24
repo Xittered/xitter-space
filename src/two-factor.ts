@@ -5,7 +5,7 @@ import { accountPage, esc } from "./account-page";
 import { sql } from "./db";
 import { hit } from "./ratelimit";
 import { settings } from "./settings";
-import { newSecret, otpauthUrl, verifyCode } from "./totp";
+import { matchingStep, newSecret, otpauthUrl } from "./totp";
 import { startSession, type Session, type Viewer } from "./auth";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
@@ -19,7 +19,14 @@ async function state(userId: string) {
 export async function codeAccepted(userId: string, input: string): Promise<boolean> {
 	const [u] = await sql`select totp_secret from users where id = ${userId}::bigint and totp_enabled`;
 	if (!u?.totp_secret) return false;
-	if (verifyCode(u.totp_secret, input)) return true;
+	const step = matchingStep(u.totp_secret, input);
+	if (step !== undefined) {
+		// A code is good once: the step it came from is kept, and nothing from
+		// that step or before passes again, however long the drift window.
+		const spent = await sql`update users set totp_last_step = ${step} where id = ${userId}::bigint and totp_enabled
+			and (totp_last_step is null or totp_last_step < ${step}) returning id`;
+		return spent.length > 0;
+	}
 	const clean = input.replace(/[\s-]/g, "").toLowerCase();
 	if (!/^\d{6}$/.test(clean)) return false;
 	const hash = sha(clean);
@@ -122,9 +129,11 @@ export async function twoFactorRoute(req: Request, url: URL, viewer: Viewer): Pr
 		return setup(req, secret, viewer);
 	}
 	if (req.method === "POST" && sub === "/confirm" && !u.totp_enabled && u.totp_pending) {
-		if (!verifyCode(u.totp_pending, field("code"))) return setup(req, u.totp_pending, viewer, "That code isn't right. Try the next one your app shows.");
+		const step = matchingStep(u.totp_pending, field("code"));
+		if (step === undefined) return setup(req, u.totp_pending, viewer, "That code isn't right. Try the next one your app shows.");
 		const backups = Array.from({ length: 8 }, () => String(randomInt(0, 1_000_000)).padStart(6, "0"));
-		await sql`update users set totp_enabled = true, totp_secret = totp_pending, totp_pending = null,
+		// the code that turned it on is spent too
+		await sql`update users set totp_enabled = true, totp_secret = totp_pending, totp_pending = null, totp_last_step = ${step},
 			totp_backup = ${JSON.stringify(backups.map(sha))}::text::jsonb where id = ${viewer.id}::bigint`;
 		return page(
 			req,
@@ -136,7 +145,7 @@ export async function twoFactorRoute(req: Request, url: URL, viewer: Viewer): Pr
 	if (req.method === "POST" && sub === "/disable" && u.totp_enabled) {
 		const ok = await Bun.password.verify(field("password"), u.password_hash).catch(() => false);
 		if (!ok || !(await codeAccepted(viewer.id, field("code")))) return status(req, viewer, true, "The password or the code isn't right.");
-		await sql`update users set totp_enabled = false, totp_secret = null, totp_pending = null, totp_backup = '[]'::jsonb where id = ${viewer.id}::bigint`;
+		await sql`update users set totp_enabled = false, totp_secret = null, totp_pending = null, totp_last_step = null, totp_backup = '[]'::jsonb where id = ${viewer.id}::bigint`;
 		return status(req, viewer, false);
 	}
 	return status(req, viewer, u.totp_enabled);

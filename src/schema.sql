@@ -80,6 +80,8 @@ alter table users add column if not exists totp_enabled boolean not null default
 alter table users add column if not exists totp_secret text;
 alter table users add column if not exists totp_pending text;
 alter table users add column if not exists totp_backup jsonb not null default '[]';
+-- the step of the last code accepted, so a code can't be used twice
+alter table users add column if not exists totp_last_step bigint;
 create table if not exists login_challenges (
 	token uuid primary key,
 	user_id bigint not null references users (id) on delete cascade,

@@ -640,11 +640,19 @@ async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefi
 	// only for unbound uploads so ordinary post images keep their indexed path.
 	const pollIds: string[] = served.post ? [] : (await sql`select id::text from polls where choice_media @> ${sql.array([served.id], "INT8")}`).map((p: any) => p.id);
 	if (!served.post && !pollIds.length) {
-		// Avatars, banners and other non-post references retain their access
-		// policy. Their URL may later be attached to private content.
-		const [profile] = await sql`select 1 from users where id = ${served.owner}::bigint
-			and (avatar_url = ${`/media/${served.id}`} or banner_url = ${`/media/banner/${served.id}`})`;
-		return profile ? REVALIDATE : PRIVATE;
+		// What a profile, list, community or article shows is as open as that
+		// is (its URL may later be attached to private content, so it is
+		// revalidated). An upload nothing shows yet, a draft's or a scheduled
+		// post's, is its owner's alone: ids are snowflakes, not secrets.
+		const path = `/media/${served.id}`;
+		const [shown] = await sql`select 1 where
+			exists (select 1 from users where id = ${served.owner}::bigint and (avatar_url = ${path} or banner_url = ${`/media/banner/${served.id}`}))
+			or exists (select 1 from lists where banner_media_id = ${served.id}::bigint)
+			or exists (select 1 from communities where banner_url = ${path})
+			or exists (select 1 from articles where user_id = ${served.owner}::bigint
+				and (cover_media_id = ${served.id}::bigint or content_state::text like ${`%${served.id}%`}))`;
+		if (shown) return REVALIDATE;
+		return served.owner === viewer.id ? PRIVATE : undefined;
 	}
 	const [access] = await sql`select not post.hidden and not author.protected and post.circle_owner_id is null as open from posts post join users author on author.id = post.user_id where
 		${served.post ? sql`post.id = ${served.post}::bigint` : sql`post.poll_id = any(${sql.array(pollIds, "INT8")})`}
