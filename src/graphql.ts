@@ -180,13 +180,15 @@ const forYou: Handler = async (viewer, vars) => {
 	// sort indexes run down from asOf in ranked order, below anything newer,
 	// two apart so a boosted post fits between two of them
 	const base = BigInt(asOf);
-	const topics = await topicsForPosts(viewer.id, page.items.filter((i) => !i.repost).map((i) => ({ id: i.post.id, authorId: i.post.author.id })));
+	const [topics, boosted] = await Promise.all([
+		topicsForPosts(viewer.id, page.items.filter((i) => !i.repost).map((i) => ({ id: i.post.id, authorId: i.post.author.id }))),
+		page.items.length > 2 ? boostedPost(viewer, page.items.map((i) => i.post.id)) : undefined,
+	]);
 	const feedbackActions = [...new Map([...topics.values()].map((t) => [t.id, t])).values()].flatMap(topicFeedbackActions);
 	const entries: unknown[] = page.items.map((item, i) => {
 		const topic = item.repost ? undefined : topics.get(item.post.id);
 		return feedEntry(item, (base - 2n * BigInt(offset + i) - 2n).toString(), topic && { context: topicContext(topic), feedbackKeys: topicFeedbackKeys(topic) });
 	});
-	const boosted = page.items.length > 2 ? await boostedPost(viewer, page.items.map((i) => i.post.id)) : undefined;
 	if (boosted) entries.splice(2, 0, promotedEntry(boosted, (base - 2n * BigInt(offset + 2) - 1n).toString()));
 	if (!ranked) entries.unshift(cursorEntry("Top", `t${asOf}`, inc(asOf)));
 	if (page.next !== undefined) entries.push(cursorEntry("Bottom", `r${page.next}.${asOf}`, (base - 2n * BigInt(page.next) - 1n).toString()));
@@ -232,11 +234,11 @@ const tweetDetail: Handler = async (viewer, vars) => {
 	const cursor = typeof vars.cursor === "string" ? vars.cursor : "";
 	const entries: unknown[] = [];
 	const feedbackActions: unknown[] = [];
-	const focal = await getPost(viewer.id, id);
+	const [focal, below] = await Promise.all([getPost(viewer.id, id), repliesBelow(viewer.id, id)]);
 	if (!focal) throw new PostError("No status found with that ID.", 144);
 	const pinned = focal.reply_to_id ? null : await pinnedReplyOf(id);
 	const canPin = !focal.reply_to_id && focal.author.id === viewer.id;
-	const { roots, thread } = conversationThreads(focal, await repliesBelow(viewer.id, id), pinned);
+	const { roots, thread } = conversationThreads(focal, below, pinned);
 	const labelled = (it: Placed): ThreadItem =>
 		it.parent ? it : { ...it, pinned: it.post.id === pinned, ...(canPin ? { feedbackKey: it.post.id === pinned ? PIN_KEYS.Pinned : PIN_KEYS.Pinnable } : {}) };
 	const threadsPage = async (offset: number, start: bigint) => {

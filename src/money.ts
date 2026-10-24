@@ -6,7 +6,7 @@
 import { audit } from "./admin";
 import { esc } from "./account-page";
 import type { Viewer } from "./auth";
-import { isBlockedEitherWay } from "./blocks";
+import { blockedFor, isBlockedEitherWay, protectedFor, suspendedFor } from "./blocks";
 import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { hateIn } from "./hate";
@@ -384,6 +384,10 @@ export const MONEY_WORDMARK = `<span class="xm-mark"><svg viewBox="0 0 24 24" ar
 // reversed: staff sent the money back (Admin > Money)
 export type Payment = { id: string; amount: number; note: string; at: Date; sender: Party; recipient: Party; reversed?: boolean; status: string };
 
+// a post (p) that names a payment or request shows it only to those who can see that post
+const postSeenBy = (viewerId: string) =>
+	sql`not p.hidden and p.user_id not in ${protectedFor(viewerId)} and p.user_id not in ${suspendedFor(viewerId)} and p.user_id not in ${blockedFor(viewerId)}`;
+
 // payments by id, with both sides; `visibleTo` keeps the ones that account is
 // part of or that one side put in a post
 export async function payments(ids: string[], visibleTo?: string): Promise<Map<string, Payment>> {
@@ -394,7 +398,7 @@ export async function payments(ids: string[], visibleTo?: string): Promise<Map<s
 		${
 			visibleTo
 				? sql`and (${visibleTo}::bigint in (t.sender_id, t.recipient_id) or exists (select 1 from posts p
-				where p.user_id in (t.sender_id, t.recipient_id, ${feed}::bigint) and p.text ~ ('/i/xmoney/p/' || t.id::text || '([^0-9]|$)')))`
+				where p.user_id in (t.sender_id, t.recipient_id, ${feed}::bigint) and ${postSeenBy(visibleTo)} and p.text ~ ('/i/xmoney/p/' || t.id::text || '([^0-9]|$)')))`
 				: sql``
 		}`;
 	const who = await parties(rows.flatMap((r: any) => [r.sender_id, r.recipient_id]));
@@ -420,7 +424,7 @@ export async function requests(ids: string[], visibleTo?: string): Promise<Map<s
 		${
 			visibleTo
 				? sql`and (q.payer_id is null or ${visibleTo}::bigint in (q.requester_id, q.payer_id) or exists (select 1 from posts p
-				where p.user_id = q.requester_id and p.text ~ ('/i/xmoney/r/' || q.id::text || '([^0-9]|$)')))`
+				where p.user_id = q.requester_id and ${postSeenBy(visibleTo)} and p.text ~ ('/i/xmoney/r/' || q.id::text || '([^0-9]|$)')))`
 				: sql``
 		}`;
 	const who = await parties(rows.flatMap((r: any) => [r.requester_id, ...(r.payer_id ? [r.payer_id] : [])]));

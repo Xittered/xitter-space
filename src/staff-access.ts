@@ -61,6 +61,9 @@ export const markStaff = () => {
 	if (request) request.staff = true;
 };
 
+// whether this request passed staffGate (the admin panel's address and 2FA rules)
+export const isStaffRequest = () => !!staffRequest.getStore()?.staff;
+
 // Staff with the suspended_profiles permission open a suspended account's
 // profile in the app. For the rest of that request, that one account's posts
 // aren't left out (blocks.ts); everywhere else it stays gone.

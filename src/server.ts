@@ -20,6 +20,7 @@ import { orgRoute } from "./org-manage";
 import { menuLinks } from "./tidy";
 import { isPlayerPage, playerPage } from "./player-card";
 import { chatMediaRoute, chatSocket, juiceboxProxy, socketUser } from "./chat";
+import { sweepChatUploads } from "./chat-media";
 import { loadBuild } from "./build";
 import { MEDIA_DIR, mediaUpload, serveMedia } from "./media";
 import { resumeVideos } from "./video";
@@ -330,6 +331,15 @@ setInterval(
 		}),
 	10 * 60_000,
 ).unref();
+// abandoned and expired chat attachments give their disk back
+setInterval(
+	() =>
+		sweepChatUploads().catch((e) => {
+			console.error("chat upload sweep failed", e.message);
+			recordError("job", e, { path: "chat upload sweep" });
+		}),
+	60 * 60_000,
+).unref();
 // sessions nobody used in months end, whatever their cookie says
 setInterval(
 	() =>
@@ -485,7 +495,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (steam) return steamFile(req, steam[1]!, steam[2]!, url.searchParams.has("thumb"), !!viewer);
 	if (viewer?.role && !(await staffGate(req, viewer))) markStaff();
 	// a suspended account can't sign in, so it appeals here with its password
-	if (p === "/appeal") return appealRoute(req, server.requestIP(req)?.address ?? "");
+	if (p === "/appeal") return appealRoute(req, requestIp(req) ?? "");
 	// sign-in for the hosting application site: a one-time ticket for whoever is signed in here
 	if (p === "/account/hosting/handoff") return hostingHandoff(url, viewer);
 	if (p === "/account/access" && viewer?.status === "restricted") return restrictedPage(req, viewer);

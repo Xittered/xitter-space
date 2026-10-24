@@ -38,10 +38,11 @@ const SECRETS_FILE = "data/chat-secrets.json";
 function loadSecrets(): Secrets {
 	let saved: Partial<Secrets> = {};
 	if (existsSync(SECRETS_FILE)) saved = JSON.parse(readFileSync(SECRETS_FILE, "utf8"));
+	// `||`: a variable left empty in .env would otherwise sign tokens with an empty key
 	const s: Secrets = {
-		tokenKey: process.env.CHAT_TOKEN_SECRET ?? saved.tokenKey ?? randomBytes(32).toString("hex"),
-		realmId: process.env.JUICEBOX_REALM_ID ?? saved.realmId ?? randomBytes(16).toString("hex"),
-		tenantSecret: process.env.JUICEBOX_TENANT_SECRET ?? saved.tenantSecret ?? randomBytes(32).toString("hex"),
+		tokenKey: process.env.CHAT_TOKEN_SECRET || saved.tokenKey || randomBytes(32).toString("hex"),
+		realmId: process.env.JUICEBOX_REALM_ID || saved.realmId || randomBytes(16).toString("hex"),
+		tenantSecret: process.env.JUICEBOX_TENANT_SECRET || saved.tenantSecret || randomBytes(32).toString("hex"),
 	};
 	if (!existsSync(SECRETS_FILE) || JSON.stringify(saved) !== JSON.stringify(s)) {
 		mkdirSync("data", { recursive: true });

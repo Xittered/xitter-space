@@ -9,7 +9,7 @@ import { sql } from "./db";
 import { INSTANCE_ID } from "./federation";
 import { type Check, type Finding, MigrationError, check, jobs, start } from "./migration-import";
 import { codeState, createCode, revokeCodes, versionInfo } from "./migration";
-import { hit, used } from "./ratelimit";
+import { hit, passwordTry } from "./ratelimit";
 
 const CSS = `
 .versions{display:grid;grid-template-columns:auto 1fr 1fr;gap:4px 16px;font-size:14px}
@@ -176,12 +176,12 @@ export async function migrateRoute(req: Request, viewer: Viewer): Promise<Respon
 	const action = field("action");
 	if (action === "code") {
 		const account = viewer.screen_name.toLowerCase();
-		if (used("password", account)) return home(req, viewer, { error: "Too many tries. Wait 15 minutes.", status: 429 });
+		const refund = passwordTry(account);
+		if (!refund) return home(req, viewer, { error: "Too many tries. Wait 15 minutes.", status: 429 });
 		const [u] = await sql`select password_hash from users where id = ${viewer.id}::bigint`;
-		if (!u || !(await Bun.password.verify(field("password"), u.password_hash).catch(() => false))) {
-			hit("password", account);
+		if (!u || !(await Bun.password.verify(field("password"), u.password_hash).catch(() => false)))
 			return home(req, viewer, { error: "That password isn't right.", status: 400 });
-		}
+		refund();
 		return home(req, viewer, { code: await createCode(viewer.id) });
 	}
 	if (action === "revoke") {
