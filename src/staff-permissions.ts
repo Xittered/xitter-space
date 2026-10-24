@@ -3,8 +3,8 @@
 // with the role that has it by default (a Privacy one also hides some fields
 // from what every staff member reads, see `allows`); an admin turns it on or off for each
 // role below admin. Admins always have every permission. Actions outside the
-// list (roles, settings, security, backups, the client build, these
-// permissions themselves) stay with the role written on them in admin.ts.
+// list (roles, settings, security, backups, the client build, server updates,
+// these permissions themselves) stay with the role written on them in admin.ts.
 
 import { settings } from "./settings";
 

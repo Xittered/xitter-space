@@ -1,7 +1,8 @@
 // Whether this instance runs the latest Xitter, for the banner atop the admin
 // panel. Every six hours it asks GitHub about the repository's main branch
-// (UPDATE_REPO, else the GitHub repository source_url names, else
-// Xittered/xitter; UPDATE_BRANCH; UPDATE_CHECK=off turns it off).
+// (UPDATE_REPO, else the one last updated from in the panel (self-update.ts),
+// else the GitHub repository source_url names, else Xittered/xitter;
+// UPDATE_BRANCH, else the panel's; UPDATE_CHECK=off turns it off).
 //
 // With a known commit (a git checkout, or XITTER_COMMIT) GitHub says how many
 // commits the branch is ahead of it. The Docker image has no .git, so without
@@ -15,7 +16,7 @@ import { settings } from "./settings";
 import { COMMIT } from "./version";
 
 const root = join(import.meta.dir, "..");
-const BRANCH = process.env.UPDATE_BRANCH || "main";
+const branch = () => process.env.UPDATE_BRANCH || settings().update_source.branch || "main";
 const EVERY = 6 * 3600_000;
 // what the Docker image is built from (Dockerfile COPY), minus the instance list, which is data
 const TRACKED = (path: string) => /^(src|public)\//.test(path) || path === "package.json" || path === "bun.lock";
@@ -39,6 +40,7 @@ export const updateStatus = () => status;
 
 export function updateRepo(): string {
 	if (process.env.UPDATE_REPO) return process.env.UPDATE_REPO;
+	if (settings().update_source.repo) return settings().update_source.repo;
 	const m = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+?)(?:\.git)?\/?$/.exec(settings().source_url.trim());
 	return m?.[1] ?? "Xittered/xitter";
 }
@@ -113,11 +115,11 @@ export function differingFiles(tree: { path: string; type: string; sha: string }
 
 export async function checkForUpdate(): Promise<UpdateStatus> {
 	// an admin pressing "Check again" over and over shouldn't use up GitHub's hourly allowance
-	if (status && !status.error && Date.now() - Date.parse(status.checked_at) < 60_000) return status;
-	const base = { repo: updateRepo(), branch: BRANCH, checked_at: new Date().toISOString() };
+	const base = { repo: updateRepo(), branch: branch(), checked_at: new Date().toISOString() };
+	if (status && !status.error && status.repo === base.repo && status.branch === base.branch && Date.now() - Date.parse(status.checked_at) < 60_000) return status;
 	try {
-		const head = await github(`/commits/${encodeURIComponent(BRANCH)}`);
-		if (!head?.sha) throw new Error(`No branch ${BRANCH} in ${base.repo}`);
+		const head = await github(`/commits/${encodeURIComponent(base.branch)}`);
+		if (!head?.sha) throw new Error(`No branch ${base.branch} in ${base.repo}`);
 		const latest = { sha: String(head.sha), date: head.commit?.committer?.date ?? null, message: String(head.commit?.message ?? "").split("\n")[0].slice(0, 200) };
 		let behind: number | null = null;
 		let changed: number | null = null;

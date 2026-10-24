@@ -481,6 +481,7 @@ const PAGES = {
 	security: { icon: "shield_lock", title: "Security", needs: "admin" },
 	backups: { icon: "backup", title: "Backups", needs: "admin" },
 	client: { icon: "system_update", title: "Client", needs: "admin" },
+	update: { icon: "upgrade", title: "Server update", needs: "admin" },
 	audit: { icon: "history", title: "Audit log" },
 };
 
@@ -490,7 +491,7 @@ const GROUPS = [
 	["People", ["users", "orgs", "invites", "badges"]],
 	["Content", ["stickers", "hashflags", "topics", "cards"]],
 	["Instance", ["settings-account", "settings-limits", "settings-community", "settings-safety", "settings-discovery", "settings-branding", "switches", "money", "email", "apps", "oauth", "federation", "hosting"]],
-	["Staff and system", ["permissions", "security", "audit", "errors", "backups", "client"]],
+	["Staff and system", ["permissions", "security", "audit", "errors", "backups", "client", "update"]],
 ];
 function openGroup(g, on) {
 	g.classList.toggle("open", on);
@@ -544,7 +545,7 @@ window.addEventListener("hashchange", route);
 // instance runs (update-check.ts). Closing it hides it until the branch moves.
 async function showUpdate(fresh) {
 	const bar = $("#update-bar");
-	const { status: s } = await api(fresh ? "checkUpdate" : "updateStatus").catch(() => ({}));
+	const { status: s, self_update } = await api(fresh ? "checkUpdate" : "updateStatus").catch(() => ({}));
 	bar.hidden = true;
 	if (!s?.outdated || !s.latest) {
 		if (fresh) notice(s?.error ? "Couldn't check: " + s.error : "This instance runs the latest Xitter");
@@ -557,8 +558,8 @@ async function showUpdate(fresh) {
 		: "Its code differs from " + where + " in " + s.changed_files + (s.changed_files === 1 ? " file" : " files") + ".";
 	bar.innerHTML = '<span class="icon">system_update</span><div class="ub-body"><div><b>This instance is out of date.</b> ' + how +
 		" Latest: " + esc(s.latest.message || s.latest.sha.slice(0, 12)) + (s.latest.date ? " (" + esc(when(s.latest.date)) + ")" : "") + ".</div>" +
-		"<div>To update, on the server: <code>git pull</code>, then <code>docker compose up -d --build</code>.</div>" +
-		'<div class="ub-buttons"><a href="https://github.com/' + esc(s.repo) + "/commits/" + esc(s.branch) + '" target="_blank" rel="noopener">What changed</a><button type="button" id="ub-check">Check again</button></div></div>' +
+		(self_update ? "" : "<div>To update, on the server: <code>git pull</code>, then <code>docker compose up -d --build</code>.</div>") +
+		'<div class="ub-buttons">' + (self_update ? '<a href="#update">Update now</a>' : "") + '<a href="https://github.com/' + esc(s.repo) + "/commits/" + esc(s.branch) + '" target="_blank" rel="noopener">What changed</a><button type="button" id="ub-check">Check again</button></div></div>' +
 		'<button type="button" class="ub-close" aria-label="Close until the next update">×</button>';
 	bar.hidden = false;
 	$("#ub-check").onclick = () => showUpdate(true);
@@ -648,6 +649,59 @@ const RENDER = {
 		};
 	},
 
+	// self-update.ts: the same steps as updating by hand on the server, then a restart
+	async update(main) {
+		const u = await api("selfUpdate");
+		const short = (sha) => sha ? sha.slice(0, 12) : "none";
+		const last = u.last;
+		const firstRepo = u.allowed_repos === "*" ? "Xittered/xitter" : u.allowed_repos[0];
+		const proof = () => ({ password: $("#upass").value, code: $("#ucode").value });
+		const going = last && (last.state === "running" || last.state === "restarting");
+		const stateText = { running: "Running", restarting: "Restarting", done: "Done", failed: "Failed" };
+		const off = !u.enabled
+			? '<div class="box" style="margin-bottom:16px"><p>Updating from the panel is off. To turn it on, the owner sets <span class="code">SELF_UPDATE=on</span> in the server\'s environment and restarts it once.</p></div>'
+			: !u.checkout ? '<div class="box" style="margin-bottom:16px"><p>This instance isn\'t a git checkout (a Docker image, say), so it updates on the server: <span class="code">git pull</span>, then <span class="code">docker compose up -d --build</span>.</p></div>' : "";
+		main.innerHTML = "<h1>Server update</h1>" +
+			'<p class="dim">Updates this server\'s code from a GitHub repository: it backs up the database (see Backups), fetches the branch, checks it out, runs <span class="code">bun install</span>, makes sure the new code loads, and restarts. If the code doesn\'t load, the server stays on the commit it runs now. The new code runs as this server, with its database and keys, so update only from repositories you trust. Going back to the previous commit leaves the database as the update left it; the backup restores it.</p>' +
+			off +
+			'<div class="cards"><div class="card"><span>Running</span><b class="code">' + esc(short(u.commit)) + "</b></div>" +
+			'<div class="card"><span>Previous</span><b class="code">' + esc(short(u.previous?.sha)) + "</b>" + (u.previous ? '<span class="small dim">on ' + esc(u.previous.branch) + "</span>" : "") + "</div></div>" +
+			(u.enabled && u.checkout ? '<div class="box" style="margin:16px 0"><h2>Update from</h2><div class="row">' +
+				'<input id="urepo" placeholder="' + esc(firstRepo) + '" aria-label="GitHub repository" value="' + esc(last?.kind === "update" ? last.repo : firstRepo) + '" style="flex:2;min-width:220px">' +
+				'<input id="ubranch" placeholder="Default branch" aria-label="Branch" value="' + esc(last?.kind === "update" ? last.branch ?? "" : "") + '" style="flex:1;min-width:140px">' +
+				"</div>" +
+				'<p class="dim small">A repository like <span class="code">owner/name</span> or its github.com address. Leave the branch blank for the repository\'s default. ' +
+				(u.allowed_repos === "*" ? "Any GitHub repository is allowed here." : "This instance updates only from " + u.allowed_repos.map((r) => '<span class="code">' + esc(r) + "</span>").join(", ") + "; the owner names others with <span class=\"code\">SELF_UPDATE_REPOS</span>.") + "</p>" +
+				'<div class="row" style="margin-top:12px"><input id="upass" type="password" autocomplete="current-password" placeholder="Your password" aria-label="Your password" style="flex:1;min-width:160px">' +
+				'<input id="ucode" inputmode="numeric" autocomplete="one-time-code" placeholder="Two-factor code" aria-label="Two-factor code" style="flex:1;min-width:140px">' +
+				'<button class="btn primary" id="ugo"' + (going ? " disabled" : "") + ">Update</button>" +
+				(u.previous ? '<button class="btn" id="uback"' + (going ? " disabled" : "") + ">Go back to " + esc(short(u.previous.sha)) + "</button>" : "") + "</div>" +
+				'<p class="dim small">Updating and going back take your password and a two-factor code again.</p></div>' : "") +
+			(last ? '<div class="box"><h2>' + (last.kind === "rollback" ? "Last time going back" : "Last update") + ": " + esc(stateText[last.state] ?? last.state) + "</h2>" +
+				'<p class="dim small">' + (last.kind === "update" ? esc(last.repo) + (last.branch ? " (" + esc(last.branch) + ")" : "") + ", " : "") +
+				"by @" + esc(last.by) + ", " + esc(when(last.started_at)) + (last.from ? ", " + esc(short(last.from)) + " → " + esc(short(last.to)) : "") +
+				(last.backup ? ", backup " + esc(last.backup) : "") + "</p>" +
+				(last.error ? '<p style="color:var(--red)">' + esc(last.error) + "</p>" : "") +
+				'<pre class="code" style="max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px">' + esc(last.log.join("\n")) + "</pre></div>" : "");
+		if ($("#ugo")) $("#ugo").onclick = async () => {
+			const repo = $("#urepo").value.trim() || firstRepo;
+			const branch = $("#ubranch").value.trim();
+			if (!(await ask("Update this server from " + repo + (branch ? " (" + branch + ")" : "") + " and restart it? Everyone is disconnected for a moment."))) return;
+			act(() => api("startSelfUpdate", { repo, branch, ...proof() }), "Updating…").then(route);
+		};
+		if ($("#uback")) $("#uback").onclick = async () => {
+			if (!(await ask("Go back to " + short(u.previous.sha) + " and restart? The database stays as it is."))) return;
+			act(() => api("rollbackSelfUpdate", proof()), "Going back…").then(route);
+		};
+		// follow a running update, and wait out the restart
+		if (going) setTimeout(function poll() {
+			if (location.hash !== "#update") return;
+			fetch("/admin/api/selfUpdate", { method: "POST", headers: { "content-type": "application/json", "x-csrf-token": csrf }, body: "{}" })
+				.then((r) => r.ok ? route() : Promise.reject())
+				.catch(() => setTimeout(poll, 2000));
+		}, 2000);
+	},
+
 	async backups(main) {
 		const { backups, schedule, intervals, max_keep, dir } = await api("backups");
 		const every = (h) => h === 1 ? "hour" : h === 24 ? "day" : h + " hours";
@@ -683,7 +737,7 @@ const RENDER = {
 		const defaultRole = (p) => p.default_role === "admin" ? "Admins only" : p.default_role === "moderator" ? "Moderators" : "Moderators and support";
 		const toggle = (role, p) => '<label class="permission-toggle"><input type="checkbox" data-role="' + role + '" data-perm="' + esc(p.key) + '" aria-label="Allow ' + role + " to " + esc(p.label.toLocaleLowerCase()) + '"' + (roles[role][p.key] ? " checked" : "") + "></label>";
 		main.innerHTML = "<h1>Staff permissions</h1>" +
-			'<p class="dim">What moderators and support can do in this panel. Admins can always do everything, and every staff role can look through accounts, posts, reports and the audit log; the Privacy permissions decide who also sees IP and email addresses. Roles, settings, security, backups and the client build stay with admins. Nobody acts on staff at or above their own role, whatever they are allowed. Changes apply to the next thing a staff member does; they see new buttons after reloading the panel.</p>' +
+			'<p class="dim">What moderators and support can do in this panel. Admins can always do everything, and every staff role can look through accounts, posts, reports and the audit log; the Privacy permissions decide who also sees IP and email addresses. Roles, settings, security, backups, the client build and server updates stay with admins. Nobody acts on staff at or above their own role, whatever they are allowed. Changes apply to the next thing a staff member does; they see new buttons after reloading the panel.</p>' +
 			groups.map((g) => '<section class="permission-group"><h2>' + esc(g) + '</h2><div class="permission-header"><span>Default access</span><span>Moderator</span><span>Support</span></div>' +
 				permissions.filter((p) => p.group === g).map((p) => '<div class="permission-row"><div class="permission-copy"><span>' + esc(p.label) + '</span><span class="permission-default">Default: ' + esc(defaultRole(p)) + '</span></div>' + ROLES.map((r) => toggle(r, p)).join("") + "</div>").join("") + "</section>").join("") +
 			'<div class="row" style="margin-top:16px"><button class="btn primary" id="psave">Save</button><button class="btn" id="preset">Back to the defaults</button></div>';

@@ -100,6 +100,9 @@ const DEFAULTS = {
 	// backups.ts: while `daily` is on, a database dump every `every_hours` (one
 	// of BACKUP_INTERVALS), the newest `keep` kept
 	backups: { daily: false, keep: 7, every_hours: 24 },
+	// self-update.ts: the repository and branch an admin last updated from, which
+	// the update check (update-check.ts) then follows; blank for its defaults
+	update_source: { repo: "", branch: "" },
 	// member-invites.ts: invites members make themselves, while sign-up is by invite
 	invite_quota: { enabled: false, per_month: 3, uses: 1, min_age_days: 7 },
 	// archive-import.ts: who may import from X, while the feature is on; staff skip both

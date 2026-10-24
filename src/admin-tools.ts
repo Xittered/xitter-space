@@ -20,6 +20,8 @@ import { setSetting, settings } from "./settings";
 import { clientIp, ipAllowed, parseRange } from "./staff-access";
 import { allows } from "./staff-permissions";
 import { checkForUpdate, updateStatus } from "./update-check";
+import { selfUpdateEnabled, selfUpdateReady, selfUpdateStatus, startRollback, startSelfUpdate, updateTarget } from "./self-update";
+import { reauthenticate } from "./superadmin";
 import { BACKUP_DIR, BACKUP_INTERVALS, MAX_BACKUPS_KEPT, createBackup, deleteBackup, listBackups } from "./backups";
 import { clientStatus, latestSha, rollbackClient, updateClient } from "./client-update";
 import { decideImport, pendingImports } from "./archive-import";
@@ -58,6 +60,23 @@ function lines(value: unknown, what: string, tags = false) {
 	const out = [...new Set((value as string[]).map((x) => x.trim().toLowerCase()).filter(Boolean))];
 	if (tags && out.some((x) => !/^#?[\p{L}\p{N}_]+$/u.test(x))) throw new AdminError("Trends must be hashtag names.");
 	return tags ? out.map((x) => x.replace(/^#/, "")) : out;
+}
+
+// swapping the server's code takes the password and a two-factor code again,
+// so a session left open somewhere isn't enough
+async function confirmIdentity(a: { id: string }, b: Record<string, unknown>) {
+	const [u] = await sql`select id::text, password_hash, totp_enabled from users where id = ${a.id}::bigint and instance is null`;
+	const refused = u ? await reauthenticate(u as { id: string; password_hash: string; totp_enabled: boolean }, b.password, b.code) : "Sign in with an account on this instance.";
+	if (refused) throw new AdminError(refused, 403);
+}
+
+// self-update.ts's refusals, shown to the admin as they are
+function adminError<T>(fn: () => T): T {
+	try {
+		return fn();
+	} catch (e) {
+		throw new AdminError(e instanceof Error ? e.message : String(e));
+	}
 }
 
 async function badgeExists(id: string | null) {
@@ -645,8 +664,30 @@ export const toolActions: Record<string, Action> = {
 	},
 
 	// update-check.ts: what the last check found (one runs if none has), or a fresh check
-	updateStatus: { role: "admin", run: async () => ({ status: updateStatus() ?? (process.env.UPDATE_CHECK === "off" ? null : await checkForUpdate()) }) },
-	checkUpdate: { role: "admin", run: async () => ({ status: await checkForUpdate() }) },
+	updateStatus: { role: "admin", run: async () => ({ status: updateStatus() ?? (process.env.UPDATE_CHECK === "off" ? null : await checkForUpdate()), self_update: selfUpdateEnabled() }) },
+	checkUpdate: { role: "admin", run: async () => ({ status: await checkForUpdate(), self_update: selfUpdateEnabled() }) },
+	// self-update.ts: an update goes on after the answer; the panel follows it with selfUpdate
+	selfUpdate: { role: "admin", run: async () => selfUpdateStatus() },
+	startSelfUpdate: {
+		role: "admin",
+		run: async (a, b) => {
+			adminError(() => updateTarget(String(b.repo ?? ""), String(b.branch ?? "")));
+			await confirmIdentity(a, b);
+			const started = adminError(() => startSelfUpdate(a.screen_name, String(b.repo ?? ""), String(b.branch ?? "")));
+			await audit(a, "self_update", null, { repo: started.repo, branch: started.branch });
+			return {};
+		},
+	},
+	rollbackSelfUpdate: {
+		role: "admin",
+		run: async (a, b) => {
+			adminError(selfUpdateReady);
+			await confirmIdentity(a, b);
+			const started = adminError(() => startRollback(a.screen_name));
+			await audit(a, "self_update_rollback", null, { branch: started.branch });
+			return {};
+		},
+	},
 	// backups.ts; restoring is pg_restore on the server, not something done from a browser
 	backups: { role: "admin", run: async () => ({ backups: listBackups(), schedule: settings().backups, intervals: BACKUP_INTERVALS, max_keep: MAX_BACKUPS_KEPT, dir: BACKUP_DIR }) },
 	createBackup: {
