@@ -28,7 +28,8 @@ import { isBlockedEitherWay, blockedIds, blockedFor, outOfView, protectedFor } f
 import { feature, settings } from "./settings";
 import { freshAsOf, rankedFeed } from "./ranking";
 import * as articles from "./articles";
-import type { Viewer } from "./auth";
+import type { User, Viewer } from "./auth";
+import { revealSuspended, seesSuspended } from "./staff-access";
 import { notificationsTimeline, unreadCount } from "./notifications";
 import { cachedTrends, searchPosts, searchUsers } from "./search";
 import { isId, newId } from "./ids";
@@ -83,6 +84,11 @@ const SUSPENDED_USER = {
 	unavailable_header: richText("Account suspended"),
 	unavailable_message: richText("This account broke the rules of this instance and was suspended."),
 };
+// what a suspended account's profile shows: to staff allowed to open it
+// (staff-permissions.ts suspended_profiles), the profile with a Suspended label
+// in the slot by the name; to everyone else, the suspended screen
+const suspendedUser = (viewer: Viewer, user: User) =>
+	seesSuspended(viewer) ? userResult({ ...user, automated_by: null, parody_label: "None", label: { text: "Suspended", badge_id: null, url: null } }) : SUSPENDED_USER;
 
 const PARODY_LABELS = new Set(["None", "Parody", "Commentary", "Fan"]);
 // the client's confirm dialog says a change locks the label for 48 hours
@@ -372,7 +378,7 @@ const createTweet: Handler = async (viewer, vars) => {
 		return { data: { create_tweet: { tweet_results: { result: tweetResult((await getPost(viewer.id, previous))!, false) } } } };
 	}
 	if (replyTo !== undefined && !isId(replyTo)) throw new PostError("Invalid post id.", 144);
-	id = await createPost(viewer.id, text, { replyToId: replyTo, quoteId, source: viewer.postSource, communityId, placeId: placeById(vars.geo?.place_id) ? vars.geo.place_id : undefined, replyPolicy: vars.conversation_control?.mode, replySelections: vars.conversation_control?.allowed_country_codes });
+	id = await createPost(viewer.id, text, { replyToId: replyTo, quoteId, source: viewer.postSource, communityId, placeId: placeById(vars.geo?.place_id) ? vars.geo.place_id : undefined, replyPolicy: vars.conversation_control?.mode, replySelections: vars.conversation_control?.allowed_country_codes, circle: !!vars.exclusive_tweet_control_options && typeof vars.exclusive_tweet_control_options === "object" });
 	if (sharedConversation) {
 		try {
 			await sql`update posts set conversation_card_post_id = ${sharedConversation.id}::bigint, sensitive = ${!!sharedConversation.sensitive} where id = ${id}::bigint`;
@@ -439,6 +445,7 @@ const profileFeed =
 		// profile tabs only page downwards
 		if (newer) return userTimeline([]);
 		const owner = userId(vars);
+		revealSuspended(viewer, owner);
 		const items = await feed({ viewerId: viewer.id, authors: { user: owner }, replies: withReplies, onlyReplies, articlesOnly, kinds, limit: count, before: at });
 		let pinned: Awaited<ReturnType<typeof getPost>>;
 		if (!at && !withReplies && kinds === "both" && !articlesOnly) {
@@ -462,6 +469,7 @@ const userMedia =
 	async (viewer, vars) => {
 		const { count, at, newer } = pageOf(vars);
 		if (newer) return userTimeline([]);
+		revealSuspended(viewer, userId(vars));
 		const items = await feed({ viewerId: viewer.id, authors: { user: userId(vars) }, replies: true, kinds: "posts", media, limit: count, before: at });
 		const posts = items.map((i) => i.post);
 		const cursors: unknown[] = [];
@@ -502,6 +510,7 @@ const reactors = (kind: "reposts" | "likes", key: string): Handler => async (vie
 };
 
 const likes: Handler = async (viewer, vars) => {
+	revealSuspended(viewer, userId(vars));
 	const posts = vars.cursor ? [] : await likedPosts(viewer.id, userId(vars));
 	const base = BigInt(newId());
 	return userTimeline(wholeList(posts.map((p, i) => tweetEntry(p, (base - BigInt(i) - 1n).toString())), base));
@@ -728,8 +737,7 @@ const handlers: Record<string, Handler> = {
 		const user = name ? ((await userByName(v.id, name)) ?? (name.includes("@") && (await lookupRemoteUser(name).catch(() => undefined)) ? await userByName(v.id, name) : undefined)) : undefined;
 		// an empty answer makes the client show "this account doesn't exist"
 		if (!user) return { data: {} };
-		// staff too: they look a suspended account up in the admin panel
-		if (user.status === "suspended") return { data: { user: { result: SUSPENDED_USER } } };
+		if (user.status === "suspended") return { data: { user: { result: suspendedUser(v, user) } } };
 		// a visit for the profile's analytics, once a day per visitor
 		if (user.id !== v.id) sql`insert into profile_visits (profile_id, visitor_id) values (${user.id}::bigint, ${v.id}::bigint) on conflict do nothing`.catch(() => {});
 		return { data: { user: { result: userResult(user) } } };
@@ -769,7 +777,7 @@ const handlers: Record<string, Handler> = {
 	},
 	UserByRestId: async (v, vars) => {
 		const user = await userById(v.id, userId(vars));
-		if (user?.status === "suspended") return { data: { user: { result: SUSPENDED_USER } } };
+		if (user?.status === "suspended") return { data: { user: { result: suspendedUser(v, user) } } };
 		return { data: user ? { user: { result: userResult(user) } } : {} };
 	},
 	UsersByRestIds: async (v, vars) => {
@@ -849,6 +857,7 @@ const handlers: Record<string, Handler> = {
 	UserVideoTimeline: userMedia("video"),
 	UserRepliesTimeline: profileFeed(true, "posts", true),
 	UserHighlightsTweets: async (v, vars) => {
+		revealSuspended(v, userId(vars));
 		const posts = vars.cursor ? [] : await highlightedPosts(v.id, userId(vars));
 		const base = BigInt(newId());
 		return userTimeline([...posts.map((p, i) => tweetEntry(p, (base - BigInt(i) - 1n).toString())), ...wholeList([], base).slice(0)]);

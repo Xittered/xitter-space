@@ -112,7 +112,7 @@ async function renderMedia(id: string | undefined) {
 const publicPost = (id: string) =>
 	sql`select p.id::text, p.user_id::text, p.text, p.source, p.created_at, p.reply_to_id::text, p.quote_id::text, p.sensitive and not u.never_sensitive as sensitive, p.edited_at from posts p join users u on u.id = p.user_id
 		where p.id = ${id}::bigint and u.instance is null and not u.protected and u.status not in ('suspended', 'limited') and u.deactivated_at is null
-			and not p.hidden and p.community_id is null and p.article_id is null
+			and not p.hidden and p.community_id is null and p.article_id is null and p.circle_owner_id is null
 			and not exists (select 1 from posts pp join users pu on pu.id = pp.user_id where pp.id = p.reply_to_id and pu.instance is null
 				and (pu.protected or pu.status in ('suspended', 'limited') or pu.deactivated_at is not null or pp.hidden or pp.community_id is not null or pp.article_id is not null))`;
 

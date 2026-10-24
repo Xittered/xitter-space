@@ -367,7 +367,8 @@ cache and autovacuum settings; adjust them for the host's memory and workload.
 | `FEDERATION_EVENTS_PER_HOUR`, `FEDERATION_MAX_ACCOUNTS` | `20000`, `100000` | Changes taken from one other instance per hour before its sync pauses, and the most of its accounts this instance takes |
 | `FEDERATION_ALLOW_HTTP` | unset | `1` federates over plain HTTP. For test instances only |
 | `XITTER_VERSION` | `version` in `package.json` | The version this instance reports in `/.well-known/xitter` and compares when an account moves |
-| `XITTER_COMMIT` | read from `.git` | The commit `/.well-known/xitter` shows, for images built without `.git` |
+| `XITTER_COMMIT` | read from `.git` | The commit `/.well-known/xitter` shows, for images built without `.git`; the update check also uses it to count how far behind the instance is |
+| `UPDATE_CHECK`, `UPDATE_REPO`, `UPDATE_BRANCH`, `UPDATE_GITHUB_TOKEN` | on, the GitHub repository `SOURCE_URL` names (else `Xittered/xitter`), `main`, unset | Every six hours the server asks GitHub whether this branch has a newer Xitter, and admins see a banner atop the panel when it does. `UPDATE_CHECK=off` turns that off; a token raises GitHub's limit of 60 requests an hour per address |
 | `MIGRATION_ALLOW_HTTP`, `MIGRATION_ALLOW_PRIVATE` | unset | `1` lets an account move from an instance over plain HTTP, or on a private network. For test instances only |
 
 Everything else (name, sign-up mode, features, limits, announcement, rules,

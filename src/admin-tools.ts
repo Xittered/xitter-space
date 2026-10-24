@@ -19,7 +19,8 @@ import { blockedNameIn, blockedWordIn, suspendForName } from "./names";
 import { setSetting, settings } from "./settings";
 import { clientIp, ipAllowed, parseRange } from "./staff-access";
 import { allows } from "./staff-permissions";
-import { BACKUP_DIR, createBackup, deleteBackup, listBackups } from "./backups";
+import { checkForUpdate, updateStatus } from "./update-check";
+import { BACKUP_DIR, BACKUP_INTERVALS, MAX_BACKUPS_KEPT, createBackup, deleteBackup, listBackups } from "./backups";
 import { clientStatus, latestSha, rollbackClient, updateClient } from "./client-update";
 import { decideImport, pendingImports } from "./archive-import";
 
@@ -475,6 +476,17 @@ export const toolActions: Record<string, Action> = {
 			from media m join users u on u.id = m.user_id ${b.user ? sql`where m.user_id = ${idOf(b.user)}::bigint` : sql``}
 			order by m.id desc limit 60 offset ${Math.max(0, Number(b.offset) || 0)}` }),
 	},
+	// the Media page's search: an account by its handle, local or @name@instance
+	mediaAccount: {
+		role: "support",
+		run: async (_a, b) => {
+			const name = String(b.screen_name ?? "").trim().replace(/^@/, "");
+			if (!name || name.length > 300) throw new AdminError("Enter a handle.");
+			const [u] = await sql`select id::text, screen_name from users where lower(screen_name) = lower(${name})`;
+			if (!u) throw new AdminError(`No account @${name}.`, 404);
+			return u;
+		},
+	},
 	deleteMedia: {
 		role: "moderator",
 		run: async (a, b) => {
@@ -632,8 +644,11 @@ export const toolActions: Record<string, Action> = {
 		},
 	},
 
+	// update-check.ts: what the last check found (one runs if none has), or a fresh check
+	updateStatus: { role: "admin", run: async () => ({ status: updateStatus() ?? (process.env.UPDATE_CHECK === "off" ? null : await checkForUpdate()) }) },
+	checkUpdate: { role: "admin", run: async () => ({ status: await checkForUpdate() }) },
 	// backups.ts; restoring is pg_restore on the server, not something done from a browser
-	backups: { role: "admin", run: async () => ({ backups: listBackups(), schedule: settings().backups, dir: BACKUP_DIR }) },
+	backups: { role: "admin", run: async () => ({ backups: listBackups(), schedule: settings().backups, intervals: BACKUP_INTERVALS, max_keep: MAX_BACKUPS_KEPT, dir: BACKUP_DIR }) },
 	createBackup: {
 		role: "admin",
 		run: async (a) => {
@@ -656,9 +671,11 @@ export const toolActions: Record<string, Action> = {
 		role: "admin",
 		run: async (a, b) => {
 			const keep = Number(b.keep);
-			if (typeof b.daily !== "boolean" || !Number.isInteger(keep) || keep < 1 || keep > 90) throw new AdminError("Keep 1 to 90 backups.");
-			await setSetting("backups", { daily: b.daily, keep });
-			await audit(a, "backup_schedule", null, { daily: b.daily, keep });
+			const every_hours = b.every_hours === undefined ? settings().backups.every_hours : Number(b.every_hours);
+			if (typeof b.daily !== "boolean" || !Number.isInteger(keep) || keep < 1 || keep > MAX_BACKUPS_KEPT) throw new AdminError(`Keep 1 to ${MAX_BACKUPS_KEPT} backups.`);
+			if (!BACKUP_INTERVALS.includes(every_hours)) throw new AdminError(`Back up every ${BACKUP_INTERVALS.join(", ")} hours.`);
+			await setSetting("backups", { daily: b.daily, keep, every_hours });
+			await audit(a, "backup_schedule", null, { daily: b.daily, keep, every_hours });
 			return {};
 		},
 	},

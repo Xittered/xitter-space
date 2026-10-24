@@ -15,6 +15,7 @@ import { remoteMediaFile } from "./federation-sync";
 import { PUBLIC_HOSTNAME, PUBLIC_ORIGIN } from "./config";
 import { blockedFor, protectedFor, suspendedFor } from "./blocks";
 import { staffViewer } from "./staff-access";
+import { circleSeen } from "./circles";
 import { sql } from "./db";
 import { isId, newId } from "./ids";
 import { settings } from "./settings";
@@ -645,9 +646,9 @@ async function cacheFor(viewer: Viewer, served: Served): Promise<string | undefi
 			and (avatar_url = ${`/media/${served.id}`} or banner_url = ${`/media/banner/${served.id}`})`;
 		return profile ? REVALIDATE : PRIVATE;
 	}
-	const [access] = await sql`select not post.hidden and not author.protected as open from posts post join users author on author.id = post.user_id where
+	const [access] = await sql`select not post.hidden and not author.protected and post.circle_owner_id is null as open from posts post join users author on author.id = post.user_id where
 		${served.post ? sql`post.id = ${served.post}::bigint` : sql`post.poll_id = any(${sql.array(pollIds, "INT8")})`}
-		and (not post.hidden or ${staffViewer(viewer.id)})
+		and (not post.hidden or ${staffViewer(viewer.id)}) and ${circleSeen(viewer.id, sql`post`)}
 		and post.user_id not in ${protectedFor(viewer.id)}
 		and post.user_id not in ${suspendedFor(viewer.id)}
 		and post.user_id not in ${blockedFor(viewer.id)} limit 1`;

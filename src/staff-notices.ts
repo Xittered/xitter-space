@@ -104,7 +104,7 @@ const attempts = new Map<string, { count: number; until: number }>();
 const appealForm = (csrf: string, error = "") => `<form method="post" action="/appeal">
 	<div class="logo" role="img" aria-label="${esc(settings().instance_name)}"></div>
 	<h1>Appeal a decision</h1>
-	<p class="dim">If your account was suspended, sign in here to ask staff to look again.</p>
+	<p class="dim">If your account was restricted or suspended, sign in here to ask staff to look again.</p>
 	<input type="hidden" name="csrf" value="${csrf}">
 	<label for="handle">Handle</label><input id="handle" name="username" autocomplete="username" required maxlength="15">
 	<label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required>

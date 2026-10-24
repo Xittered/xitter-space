@@ -26,6 +26,8 @@ export type User = {
 	// the organisation this account is an affiliate of
 	// Settings > Discoverability: people with this email in their contacts may find the account
 	discoverable_by_email?: boolean;
+	// Settings > Post details (classic-detail.ts)
+	classic_post_details?: boolean;
 	// the translator globe: blue, gold (moderator) or yellow (approver)
 	translator?: "translator" | "moderator" | "approver" | null;
 	// when the badge was given ("Verified since")
@@ -161,6 +163,7 @@ import { requestCountry } from "./login-history";
 
 const viewerCols = () => sql`u.id, u.screen_name, u.name, u.bio, u.location, u.website, u.avatar_url, u.banner_url, u.verified_type, u.flag, u.pronouns, u.status, u.role, u.protected, u.language, u.country, u.created_at, u.instance,
 	u.preferences->>'discoverable_by_email' = 'true' as discoverable_by_email,
+	u.preferences->>'classic_post_details' = 'true' as classic_post_details,
 	(select coalesce(json_agg(json_build_object('id', b.id::text, 'name', b.name) order by ub.position, b.name), '[]')
 		from user_badges ub join custom_badges b on b.id = ub.badge_id where ub.user_id = u.id) as badges`;
 

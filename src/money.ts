@@ -13,7 +13,7 @@ import { hateIn } from "./hate";
 import { newId } from "./ids";
 import { linksIn } from "./links";
 import { absolute } from "./media";
-import { avatarUrl } from "./model";
+import { avatarUrl, remoteCheckHidden } from "./model";
 import { feature, hasBlockedPhrase, settings } from "./settings";
 import { MONEY_ICON } from "./tidy";
 import { isPeer } from "./federation";
@@ -346,7 +346,7 @@ const plainUrl = (u: string | null) => (u && /^(https?:\/\/|\/)[^\s"'()\\<>]+$/.
 
 export async function parties(ids: string[]): Promise<Map<string, Party>> {
 	if (!ids.length) return new Map();
-	const rows = await sql`select u.id::text, u.screen_name, u.name, u.avatar_url, u.banner_url, u.verified_type,
+	const rows = await sql`select u.id::text, u.screen_name, u.name, u.avatar_url, u.banner_url, u.verified_type, u.instance,
 			(select json_build_object('name', o.name, 'screen_name', o.screen_name, 'avatar', o.avatar_url) from affiliations af join users o on o.id = af.org_id
 				where af.user_id = u.id order by af.created_at, af.org_id limit 1) as org,
 			m.user_id is not null and u.verified_type = 'business' as merchant, m.name as m_name, m.show_banner
@@ -359,7 +359,7 @@ export async function parties(ids: string[]): Promise<Map<string, Party>> {
 				screen_name: r.screen_name,
 				name: r.name || r.screen_name,
 				avatar: avatarUrl(r.avatar_url),
-				badge: r.verified_type ?? (r.org ? "blue" : null),
+				badge: remoteCheckHidden(r) ? null : (r.verified_type ?? (r.org && feature("affiliate_checkmarks") ? "blue" : null)),
 				org: r.org ? { name: r.org.name, screen_name: r.org.screen_name, avatar: avatarUrl(r.org.avatar) } : null,
 				square: r.verified_type === "business" || r.verified_type === "government",
 				merchant: r.merchant ? { name: r.m_name || r.name || r.screen_name, banner: r.show_banner && r.banner_url ? plainUrl(absolute(r.banner_url)) : null } : null,

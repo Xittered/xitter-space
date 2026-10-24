@@ -31,7 +31,7 @@ type Post = { id: string; text: string; created_at: Date; author: Author; image?
 
 async function publicPost(id: string): Promise<Post | undefined> {
 	if (!isId(id)) return undefined;
-	const [p] = await sql`select p.id::text, p.user_id::text, p.text, p.created_at, p.sensitive and not u.never_sensitive as sensitive, u.never_sensitive from posts p join users u on u.id = p.user_id where p.id = ${id}::bigint and not p.hidden`;
+	const [p] = await sql`select p.id::text, p.user_id::text, p.text, p.created_at, p.sensitive and not u.never_sensitive as sensitive, u.never_sensitive from posts p join users u on u.id = p.user_id where p.id = ${id}::bigint and not p.hidden and p.circle_owner_id is null`;
 	if (!p) return undefined;
 	const author = await publicAuthor(sql`id = ${p.user_id}::bigint`);
 	if (!author) return undefined;

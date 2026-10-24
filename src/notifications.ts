@@ -11,6 +11,7 @@ import { sql } from "./db";
 import { plainTweetResult, tweetResult, userResult } from "./model";
 import type { PostRow } from "./model";
 import { postsByIds } from "./posts";
+import { circleMember } from "./circles";
 import { feature, settings } from "./settings";
 import { usersByIds } from "./users";
 import { formatCents } from "./money";
@@ -131,7 +132,7 @@ async function items(viewerId: string, opts: { before?: number; after?: number; 
 			select p.id, greatest(p.created_at, least(p.received_at, p.created_at + interval '1 day')) as created_at, 'quote' from posts p join posts quoted on quoted.id = p.quote_id
 				where quoted.user_id = ${viewerId}::bigint and p.user_id <> ${viewerId}::bigint and p.user_id not in ${hidden} and not ${hasMutedWord(viewerId, "notifications", sql`p.id`)}`
 			}
-		) x where x.created_at >= ${lo} and x.created_at < ${hi}
+		) x join posts cp on cp.id = x.id where x.created_at >= ${lo} and x.created_at < ${hi} and ${circleMember(viewerId, sql`cp`)}
 		order by x.created_at desc limit ${opts.limit * 2}`;
 	const seen = new Set<string>();
 	for (const r of posts) {

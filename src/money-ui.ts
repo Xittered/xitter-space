@@ -88,21 +88,13 @@ export const MONEY_UI_SCRIPT = `(function(){
 		go("/compose/post");
 	};
 	function editorOf(root){return root&&root.querySelector('[contenteditable="true"][data-testid^="tweetTextarea_"]')}
-	function insert(editor,text){
-		editor.focus();
-		var sel=getSelection(),range=document.createRange();
-		range.selectNodeContents(editor);range.collapse(false);
-		sel.removeAllRanges();sel.addRange(range);
-		var before=(editor.innerText||"").replace(/\\n+$/,"");
-		document.execCommand("insertText",false,(before&&!/\\s$/.test(before)?" ":"")+text);
-	}
 	function pending(){
 		var text;try{text=sessionStorage.getItem("xitter-compose")}catch(e){}
 		if(!text)return;
 		var editor=document.querySelector('[role="dialog"] [contenteditable="true"][data-testid="tweetTextarea_0"]')||document.querySelector('[contenteditable="true"][data-testid="tweetTextarea_0"]');
 		if(!editor)return;
 		try{sessionStorage.removeItem("xitter-compose")}catch(e){}
-		setTimeout(function(){insert(editor,text)},50);
+		setTimeout(function(){attach(editor,text)},50);
 	}
 
 	// cards: fetched as HTML per payment and the author it speaks for
@@ -125,6 +117,8 @@ export const MONEY_UI_SCRIPT = `(function(){
 	function cards(){
 		var want={};
 		document.querySelectorAll('[data-testid="card.wrapper"]:not([data-xm-hidden])').forEach(function(w){
+			// posts only: the composer's own link preview is the composer's business
+			if(!w.closest("article"))return;
 			var a=[].find.call(w.querySelectorAll("a[href]"),function(a){return keyOf(a.getAttribute("href"))});
 			if(!a)return;
 			var id=keyOf(a.getAttribute("href")),by=authorOf(w),key=id+"|"+by;
@@ -174,7 +168,7 @@ export const MONEY_UI_SCRIPT = `(function(){
 		// a "Pay @you" card anyone who sees the post can pay
 		action("Add a Pay button","Anyone who sees the post can pay you",function(){
 			fetch("/i/api/xitter/money/payme",{method:"POST",credentials:"include",headers:{"x-csrf-token":csrf()}}).then(function(r){return r.json()}).then(function(d){
-				close();var ed=editorOf(rootOf(toolbar));if(ed&&d.url)insert(ed,d.url);
+				close();var ed=editorOf(rootOf(toolbar));if(ed&&d.url)attach(ed,d.url);
 			},function(){});
 		});
 		action("Request money","Ask for an amount, from anyone or one account",function(){close();go("/account/money/request")});
@@ -199,7 +193,7 @@ export const MONEY_UI_SCRIPT = `(function(){
 				t.appendChild(el("div",null,p.amount+(p.shop?" at ":p.sent?" sent to ":" from ")+p.name));
 				t.appendChild(el("div","xp-dim",(p.note?"\\u201c"+p.note+"\\u201d \\u00b7 ":"")+p.date));
 				b.appendChild(t);
-				b.onclick=function(){close();var ed=editorOf(rootOf(toolbar));if(ed)insert(ed,p.url)};
+				b.onclick=function(){close();var ed=editorOf(rootOf(toolbar));if(ed)attach(ed,p.url)};
 				list.appendChild(b);
 			});
 		},function(){loading.textContent="Couldn't load your payments."});
@@ -224,12 +218,14 @@ export const MONEY_UI_SCRIPT = `(function(){
 		});
 	}
 
-	// The composer: a payment's or request's link in the post being written
-	// leaves the text and becomes the post's card, shown under the text as the
-	// post will show it. When the post goes (or is scheduled, or saved as a
-	// draft) the link goes back at the end of its text. With nothing else in
-	// the text, an invisible character keeps the Post button on; it never
-	// leaves. The card's × takes the payment off the post.
+	// The composer. A payment or request added from the $ menu or a Money page
+	// never enters the text: it is the post's attachment, shown as its card
+	// under the text, and its link goes on the end of the text as the post
+	// leaves (withLink below). X's editor (Draft.js) owns the text, so this
+	// only ever types into it as a person would: with nothing else written,
+	// an invisible character keeps the Post button on, and never leaves. A
+	// payment link typed or pasted stays as written, its card shown under it
+	// as X shows any link's.
 	var me="";
 	try{var S=window.__INITIAL_STATE__;me=S.entities.users.entities[S.session.user_id].screen_name.toLowerCase()}catch(e){}
 	var ZW="\\u200b";
@@ -239,31 +235,36 @@ export const MONEY_UI_SCRIPT = `(function(){
 		return m?base+m[0]:null;
 	}
 	function plain(t){return String(t||"").split(ZW).join("").replace(/\\s+/g," ").trim()}
-	// selects the text inside the editor, across the editor's own spans
-	function select(editor,text){
-		var walk=document.createTreeWalker(editor,NodeFilter.SHOW_TEXT),nodes=[],all="",n;
-		while((n=walk.nextNode())){nodes.push([n,all.length]);all+=n.nodeValue}
-		var at=all.indexOf(text);
-		if(at<0)return false;
-		function spot(i){for(var k=nodes.length-1;k>=0;k--)if(nodes[k][1]<=i)return [nodes[k][0],i-nodes[k][1]]}
-		var a=spot(at),b=spot(at+text.length);
-		var range=document.createRange();range.setStart(a[0],a[1]);range.setEnd(b[0],b[1]);
-		var sel=getSelection();sel.removeAllRanges();sel.addRange(range);
-		return true;
-	}
-	var attached=[];
-	function attachmentOf(editor){return attached.find(function(a){return a.editor===editor})}
-	function take(editor,url){
+	function caretAtEnd(editor){
 		editor.focus();
-		if(!select(editor,url))return;
-		document.execCommand("delete");
-		var a=attachmentOf(editor);
-		if(a){a.url=url;a.key=keyOf(url)}else attached.push({editor:editor,url:url,key:keyOf(url)});
-		setTimeout(function(){if(!plain(editor.textContent))document.execCommand("insertText",false,ZW)},0);
+		var range=document.createRange();range.selectNodeContents(editor);range.collapse(false);
+		var sel=getSelection();sel.removeAllRanges();sel.addRange(range);
 	}
-	function untake(editor){
+	var attached=[],dismissed=[];
+	function attachmentOf(editor){return attached.find(function(a){return a.editor===editor})}
+	function attach(editor,url){
+		var key=keyOf(url);
+		if(!key)return;
+		var a=attachmentOf(editor);
+		if(a){a.url=url;a.key=key}else attached.push({editor:editor,url:url,key:key});
+		// pasted: the editor takes a paste into its own state, where typing by
+		// script would change the page under it
+		if(!plain(editor.textContent)&&editor.textContent.indexOf(ZW)<0){
+			caretAtEnd(editor);
+			var dt=new DataTransfer();dt.setData("text/plain",ZW);
+			editor.dispatchEvent(new ClipboardEvent("paste",{clipboardData:dt,bubbles:true,cancelable:true}));
+		}
+		composers();
+	}
+	function detach(editor){
 		attached=attached.filter(function(a){return a.editor!==editor});
-		if(!plain(editor.textContent)&&select(editor,ZW))document.execCommand("delete");
+		// the invisible character, by a Backspace the editor handles itself
+		if(!plain(editor.textContent)&&editor.textContent.indexOf(ZW)>=0){
+			caretAtEnd(editor);
+			var e=new KeyboardEvent("keydown",{key:"Backspace",code:"Backspace",bubbles:true,cancelable:true});
+			Object.defineProperty(e,"keyCode",{get:function(){return 8}});Object.defineProperty(e,"which",{get:function(){return 8}});
+			editor.dispatchEvent(e);
+		}
 	}
 	function composers(){
 		attached=attached.filter(function(a){return a.editor.isConnected});
@@ -271,13 +272,19 @@ export const MONEY_UI_SCRIPT = `(function(){
 			var root=editor;
 			while(root.parentElement&&!root.parentElement.querySelector('[data-testid="toolBar"]'))root=root.parentElement;
 			var shown=root.parentElement&&[].find.call(root.parentElement.children,function(c){return c.hasAttribute("data-xm-compose")});
-			var url=linkIn(editor.textContent||"");
-			if(url&&keyOf(url))take(editor,url);
-			var a=attachmentOf(editor),key=a&&a.key;
+			var a=attachmentOf(editor),typed=a?null:linkIn(editor.textContent||"");
+			var key=a?a.key:typed&&dismissed.indexOf(typed)<0?keyOf(typed):null;
+			// X's own preview of a payment link the person typed: ours stands in for it
+			var area=root.parentElement;
+			if(area)[].forEach.call(area.querySelectorAll('[data-testid="card.wrapper"]'),function(w){
+				var money=[].some.call(w.querySelectorAll("a[href]"),function(l){return keyOf(l.getAttribute("href"))});
+				if(money&&key&&!w.hasAttribute("data-xm-hidden"))w.setAttribute("data-xm-hidden","");
+				else if(!key&&w.hasAttribute("data-xm-hidden"))w.removeAttribute("data-xm-hidden");
+			});
 			if(!key||!root.parentElement){if(shown)shown.remove();return}
 			var ck=key+"|"+me+"|preview";
 			if(cache[ck]===undefined){fetchCards(me,[key],true);return}
-			if(!cache[ck]){if(shown)shown.remove();untake(editor);return}
+			if(!cache[ck]){if(shown)shown.remove();if(a)detach(editor);return}
 			if(shown&&shown.getAttribute("data-xm-compose")===key)return;
 			if(shown)shown.remove();
 			var box=document.createElement("div");
@@ -288,7 +295,11 @@ export const MONEY_UI_SCRIPT = `(function(){
 			[].forEach.call(box.querySelectorAll("[data-xm-go]"),function(x){x.removeAttribute("data-xm-go");x.removeAttribute("href");x.removeAttribute("tabindex")});
 			var x=document.createElement("button");
 			x.type="button";x.className="xm-remove";x.setAttribute("aria-label","Remove payment");x.textContent="\\u00d7";
-			x.addEventListener("click",function(e){e.preventDefault();e.stopPropagation();untake(editor);box.remove()});
+			x.addEventListener("click",function(e){
+				e.preventDefault();e.stopPropagation();
+				if(attachmentOf(editor))detach(editor);else dismissed.push(typed);
+				box.remove();
+			});
 			box.appendChild(x);
 			root.parentNode.insertBefore(box,root.nextSibling);
 		});
