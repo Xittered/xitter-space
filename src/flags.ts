@@ -1,51 +1,104 @@
 // Flags people can pick at sign-up; they show next to the name, in the place X
 // puts an affiliate's organisation badge, served as /public/flag-<id>.svg.
-// Pride flags are drawn here, square so they read at badge size. Country flags
-// are Twemoji's (CC-BY 4.0, by Twitter), the client's own emoji images,
-// saved in public/flags.
+// Pride flags are meowcord's badge drawings (AGPL-3.0,
+// github.com/meowcorded/meowcord; some of them after Twemoji), kept in
+// public/flags/pride. Country flags are Twemoji's (CC-BY 4.0, by Twitter), the
+// client's own emoji images, saved in public/flags.
 
 import { join } from "node:path";
 
-type Flag = { name: string; stripes?: string[]; extra?: string; country?: string };
+type Flag = { name: string; country?: string };
 
-const PRIDE: Record<string, Flag> = {
-	pride: { name: "Pride", stripes: ["#E40303", "#FF8C00", "#FFED00", "#008026", "#004CFF", "#732982"] },
-	progress: {
-		name: "Progress Pride",
-		stripes: ["#E40303", "#FF8C00", "#FFED00", "#008026", "#004CFF", "#732982"],
-		// chevrons on the hoist, outermost first: black, brown, light blue, pink, white
-		extra: ["#000000", "#784F17", "#5BCEFA", "#F5A9B8", "#FFFFFF"]
-			.map((c, i) => {
-				const tip = 14 - i * 3;
-				return `<path d="M0 0H${tip - 10}L${tip} 12L${tip - 10} 24H0Z" fill="${c}"/>`;
-			})
-			.join(""),
-	},
-	trans: { name: "Transgender", stripes: ["#5BCEFA", "#F5A9B8", "#FFFFFF", "#F5A9B8", "#5BCEFA"] },
-	bi: { name: "Bisexual", stripes: ["#D60270", "#D60270", "#9B4F96", "#0038A8", "#0038A8"] },
-	pan: { name: "Pansexual", stripes: ["#FF218C", "#FFD800", "#21B1FF"] },
-	lesbian: { name: "Lesbian", stripes: ["#D52D00", "#EF7627", "#FF9A56", "#FFFFFF", "#D162A4", "#B55690", "#A30262"] },
-	gay: { name: "Gay", stripes: ["#078D70", "#26CEAA", "#98E8C1", "#FFFFFF", "#7BADE2", "#5049CC", "#3D1A78"] },
-	nonbinary: { name: "Non-binary", stripes: ["#FCF434", "#FFFFFF", "#9C59D1", "#2C2C2C"] },
-	genderfluid: { name: "Genderfluid", stripes: ["#FF76A4", "#FFFFFF", "#C011D7", "#000000", "#2F3CBE"] },
-	agender: { name: "Agender", stripes: ["#000000", "#BCC4C7", "#FFFFFF", "#B7F684", "#FFFFFF", "#BCC4C7", "#000000"] },
-	asexual: { name: "Asexual", stripes: ["#000000", "#A3A3A3", "#FFFFFF", "#800080"] },
-	aromantic: { name: "Aromantic", stripes: ["#3DA542", "#A7D379", "#FFFFFF", "#A9A9A9", "#000000"] },
-	intersex: { name: "Intersex", stripes: ["#FFD800"], extra: `<circle cx="12" cy="12" r="5.5" fill="none" stroke="#7902AA" stroke-width="2"/>` },
-	genderqueer: { name: "Genderqueer", stripes: ["#B57EDC", "#FFFFFF", "#4A8123"] },
-	bigender: { name: "Bigender", stripes: ["#C479A2", "#EDA5CD", "#D6C7E8", "#FFFFFF", "#D6C7E8", "#9AC7E8", "#6D82D1"] },
-	pangender: { name: "Pangender", stripes: ["#FFF798", "#FEDDCD", "#FFEBFB", "#FFFFFF", "#FFEBFB", "#FEDDCD", "#FFF798"] },
-	neutrois: { name: "Neutrois", stripes: ["#FFFFFF", "#2DBB54", "#000000"] },
-	androgyne: { name: "Androgyne", stripes: ["#FE007F", "#9832FF", "#00B8E7"] },
-	polysexual: { name: "Polysexual", stripes: ["#F61CB9", "#07D569", "#1C92F6"] },
-	omnisexual: { name: "Omnisexual", stripes: ["#FE9ACE", "#FF53BF", "#200044", "#6760FE", "#8EA6FF"] },
-	abrosexual: { name: "Abrosexual", stripes: ["#75CA91", "#B3E4C7", "#FFFFFF", "#E695B5", "#DA446C"] },
-	aroace: { name: "Aroace", stripes: ["#E38D00", "#EDCE00", "#FFFFFF", "#62B0DD", "#1A3555"] },
-	// the demi flags: a thin middle stripe between two wide ones, and a black
-	// triangle on the hoist
-	demisexual: { name: "Demisexual", stripes: ["#FFFFFF", "#FFFFFF", "#6E0070", "#D2D2D2", "#D2D2D2"], extra: `<path d="M0 0L9.5 12L0 24Z" fill="#000000"/>` },
-	demiromantic: { name: "Demiromantic", stripes: ["#FFFFFF", "#FFFFFF", "#3DA542", "#D2D2D2", "#D2D2D2"], extra: `<path d="M0 0L9.5 12L0 24Z" fill="#000000"/>` },
-};
+// id: name. The ids are what accounts wear (users.flag), so they stay put.
+const PRIDE: Record<string, Flag> = Object.fromEntries(
+	Object.entries({
+		pride: "Pride",
+		progress: "Progress Pride",
+		trans: "Transgender",
+		bi: "Bisexual",
+		pan: "Pansexual",
+		lesbian: "Lesbian",
+		gay: "Gay",
+		nonbinary: "Non-binary",
+		genderfluid: "Genderfluid",
+		agender: "Agender",
+		asexual: "Asexual",
+		aromantic: "Aromantic",
+		intersex: "Intersex",
+		genderqueer: "Genderqueer",
+		bigender: "Bigender",
+		pangender: "Pangender",
+		neutrois: "Neutrois",
+		androgyne: "Androgyne",
+		polysexual: "Polysexual",
+		omnisexual: "Omnisexual",
+		abrosexual: "Abrosexual",
+		aroace: "Aroace (sunset)",
+		demisexual: "Demisexual",
+		demiromantic: "Demiromantic",
+		abroromantic: "Abroromantic",
+		aceflux: "Aceflux",
+		achillean: "Achillean",
+		ambiamorous: "Ambiamorous",
+		androromantic: "Androromantic",
+		androsexual: "Androsexual",
+		aporagender: "Aporagender",
+		aroflux: "Aroflux",
+		aspec: "Aspec",
+		biromantic: "Biromantic",
+		ceres: "Ceres",
+		ceteroromantic: "Ceteroromantic",
+		ceterosexual: "Ceterosexual",
+		demiboy: "Demiboy",
+		demifluid: "Demifluid",
+		demiflux: "Demiflux",
+		demigender: "Demigender",
+		demigirl: "Demigirl",
+		diamoric: "Diamoric",
+		egogender: "Egogender",
+		femboy: "Femboy",
+		frayromantic: "Frayromantic",
+		gayfive: "Gay men (five stripes)",
+		genderflux: "Genderflux",
+		genderqueersymbol: "Genderqueer (symbol)",
+		genderneutral: "Gender neutral",
+		genderquestioning: "Gender questioning",
+		graygender: "Graygender",
+		grayromantic: "Grayromantic",
+		grayasexual: "Gray-asexual",
+		gyneromantic: "Gyneromantic",
+		gynesexual: "Gynesexual",
+		hijra: "Hijra",
+		intergender: "Intergender",
+		intersexprogress: "Intersex-inclusive Progress",
+		lesbianfive: "Lesbian (five stripes)",
+		maverique: "Maverique",
+		mogai: "MOGAI",
+		multigender: "Multigender",
+		multisexual: "Multisexual",
+		neurogender: "Neurogender",
+		omniromantic: "Omniromantic",
+		originalrainbow: "Original rainbow (eight stripes)",
+		panromantic: "Panromantic",
+		philadelphia: "Philadelphia",
+		polyamory: "Polyamory",
+		polyamoryalt: "Polyamory (alternative)",
+		polygender: "Polygender",
+		polyromantic: "Polyromantic",
+		pomosexual: "Pomosexual",
+		queer: "Queer",
+		sapphic: "Sapphic",
+		straightally: "Straight ally",
+		transfeminine: "Transfeminine",
+		transmasculine: "Transmasculine",
+		transneutral: "Transneutral",
+		trigender: "Trigender",
+		twospirit: "Two-spirit",
+		unlabeled: "Unlabeled",
+		waria: "Waria",
+		xenogender: "Xenogender",
+	}).map(([id, name]) => [id, { name }]),
+);
 
 // every ISO 3166-1 country and territory with a flag emoji, and the EU, UN and
 // Kosovo; IL, KP and RU are left out on purpose (the instance's call)
@@ -68,19 +121,13 @@ export const flagList = (v: unknown): string[] => (typeof v === "string" ? [...n
 export const flagValue = (v: unknown): string | null => flagList(v).join(",") || null;
 export const unknownFlag = (v: unknown) => typeof v === "string" && v.split(",").some((f) => f.trim() && !isFlag(f.trim()));
 
-// a country's emoji image, kept in public/flags/<code>.svg
+// a country's emoji image is public/flags/<code>.svg, a pride flag's badge
+// public/flags/pride/<id>.svg
 const FLAG_DIR = join(import.meta.dir, "..", "public", "flags");
-const countrySvg = async (code: string): Promise<string | undefined> => {
-	const file = Bun.file(join(FLAG_DIR, `${code.toLowerCase()}.svg`));
-	return (await file.exists()) ? file.text() : undefined;
-};
 
 export async function flagSvg(id: string): Promise<string | undefined> {
 	const f = FLAGS[id];
 	if (!f) return undefined;
-	if (f.country) return countrySvg(f.country);
-	const stripes = f.stripes ?? [];
-	const h = 24 / stripes.length;
-	const rects = stripes.map((c, i) => `<rect y="${(i * h).toFixed(3)}" width="24" height="${(h + 0.05).toFixed(3)}" fill="${c}"/>`).join("");
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${rects}${f.extra ?? ""}</svg>`;
+	const file = Bun.file(join(FLAG_DIR, f.country ? `${f.country.toLowerCase()}.svg` : `pride/${id}.svg`));
+	return (await file.exists()) ? file.text() : undefined;
 }

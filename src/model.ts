@@ -24,7 +24,9 @@ import { badgeUrl } from "./users";
 export function noteText(text: string) {
 	const entities = [...text.matchAll(/https?:\/\/[^\s<>"']+/g)].map((m) => {
 		const url = m[0].replace(/[.,;!?]+$/, "");
-		return { fromIndex: m.index!, toIndex: m.index! + url.length, ref: { type: "TimelineUrl", url, expandedUrl: url, urlType: "ExternalUrl" } };
+		// indices count code points, as in notification messages
+		const at = [...text.slice(0, m.index)].length;
+		return { fromIndex: at, toIndex: at + [...url].length, ref: { type: "TimelineUrl", url, expandedUrl: url, urlType: "ExternalUrl" } };
 	});
 	return { text, entities };
 }

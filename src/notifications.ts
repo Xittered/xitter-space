@@ -158,6 +158,8 @@ function message(users: User[], total: number, verb: string, prefix = "") {
 	else if (total === 2 && users.length >= 2) parts = [users[0], " and ", users[1]];
 	else if (total === 3 && users.length >= 3) parts = [users[0], ", ", users[1], " and ", users[2]];
 	else parts = [users[0], ` and ${total - 1} others`];
+	// the client counts these indices in code points, not UTF-16 units: a name
+	// with an emoji or flag measured by .length ran its link over the next words
 	let text = "";
 	const entities = [];
 	for (const part of parts) {
@@ -167,7 +169,8 @@ function message(users: User[], total: number, verb: string, prefix = "") {
 		}
 		const name = names[users.indexOf(part)];
 		const ref = { __typename: "TimelineRichTextUser", type: "TimelineRichTextUser", user_results: { result: userResult(part) } };
-		entities.push({ fromIndex: text.length, toIndex: text.length + name.length, ref });
+		const at = [...text].length;
+		entities.push({ fromIndex: at, toIndex: at + [...name].length, ref });
 		text += name;
 	}
 	if (verb) text += ` ${verb}`;
