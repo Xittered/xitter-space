@@ -32,11 +32,25 @@ const PRIDE: Record<string, Flag> = {
 	asexual: { name: "Asexual", stripes: ["#000000", "#A3A3A3", "#FFFFFF", "#800080"] },
 	aromantic: { name: "Aromantic", stripes: ["#3DA542", "#A7D379", "#FFFFFF", "#A9A9A9", "#000000"] },
 	intersex: { name: "Intersex", stripes: ["#FFD800"], extra: `<circle cx="12" cy="12" r="5.5" fill="none" stroke="#7902AA" stroke-width="2"/>` },
+	genderqueer: { name: "Genderqueer", stripes: ["#B57EDC", "#FFFFFF", "#4A8123"] },
+	bigender: { name: "Bigender", stripes: ["#C479A2", "#EDA5CD", "#D6C7E8", "#FFFFFF", "#D6C7E8", "#9AC7E8", "#6D82D1"] },
+	pangender: { name: "Pangender", stripes: ["#FFF798", "#FEDDCD", "#FFEBFB", "#FFFFFF", "#FFEBFB", "#FEDDCD", "#FFF798"] },
+	neutrois: { name: "Neutrois", stripes: ["#FFFFFF", "#2DBB54", "#000000"] },
+	androgyne: { name: "Androgyne", stripes: ["#FE007F", "#9832FF", "#00B8E7"] },
+	polysexual: { name: "Polysexual", stripes: ["#F61CB9", "#07D569", "#1C92F6"] },
+	omnisexual: { name: "Omnisexual", stripes: ["#FE9ACE", "#FF53BF", "#200044", "#6760FE", "#8EA6FF"] },
+	abrosexual: { name: "Abrosexual", stripes: ["#75CA91", "#B3E4C7", "#FFFFFF", "#E695B5", "#DA446C"] },
+	aroace: { name: "Aroace", stripes: ["#E38D00", "#EDCE00", "#FFFFFF", "#62B0DD", "#1A3555"] },
+	// the demi flags: a thin middle stripe between two wide ones, and a black
+	// triangle on the hoist
+	demisexual: { name: "Demisexual", stripes: ["#FFFFFF", "#FFFFFF", "#6E0070", "#D2D2D2", "#D2D2D2"], extra: `<path d="M0 0L9.5 12L0 24Z" fill="#000000"/>` },
+	demiromantic: { name: "Demiromantic", stripes: ["#FFFFFF", "#FFFFFF", "#3DA542", "#D2D2D2", "#D2D2D2"], extra: `<path d="M0 0L9.5 12L0 24Z" fill="#000000"/>` },
 };
 
-// every ISO 3166-1 country and territory with a flag emoji, and the EU, UN and Kosovo
+// every ISO 3166-1 country and territory with a flag emoji, and the EU, UN and
+// Kosovo; IL, KP and RU are left out on purpose (the instance's call)
 const COUNTRY_CODES =
-	"AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET EU FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM UN US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW";
+	"AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET EU FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM UN US UY UZ VA VC VE VG VI VN VU WF WS XK YE YT ZA ZM ZW";
 const regionName = new Intl.DisplayNames(["en"], { type: "region" });
 // "country-" keeps them apart from the pride flags (Burundi is "bi", like Bisexual)
 const COUNTRIES: Record<string, Flag> = Object.fromEntries(

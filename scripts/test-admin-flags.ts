@@ -24,7 +24,7 @@ test("admin lists render separate safe flag image URLs", async () => {
 
 test("country flags sit beside the pride flags without taking their ids", async () => {
 	const countries = Object.keys(FLAGS).filter((id) => id.startsWith("country-"));
-	expect(countries.length).toBe(252);
+	expect(countries.length).toBe(249);
 	expect(FLAGS["country-br"]?.name).toBe("Brazil");
 	expect(FLAGS["country-bi"]?.name).toBe("Burundi");
 	expect(FLAGS.bi?.name).toBe("Bisexual");
