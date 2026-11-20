@@ -15,7 +15,7 @@ import { homeOf, mentionsIn } from "./mentions";
 import { type MediaRow, absolute, mediaEntity, mediaUrl, posterUrl } from "./media";
 import { placeById } from "./places";
 import { shownSource } from "./platforms";
-import { hidesParody, requestLanguage } from "./staff-access";
+import { hidesChecks, hidesParody, requestLanguage } from "./staff-access";
 import { feature, settings } from "./settings";
 import { SHORT_POST, previewOf, weightedLength } from "./textlen";
 import { badgeUrl } from "./users";
@@ -32,7 +32,11 @@ export function noteText(text: string) {
 	return { text, entities };
 }
 
-const DEFAULT_AVATAR = `${PUBLIC_ORIGIN}/abs/sticky/default_profile_images/default_profile_normal.png`;
+const DEFAULT_AVATAR = `${PUBLIC_ORIGIN}/abs/sticky/default_profile_images/default_profile_400x400.png`;
+export const avatarSrc = (url: string | null | undefined) => {
+	const id = url && /^\/media\/(\d{1,19})$/.exec(url)?.[1];
+	return id ? `${PUBLIC_ORIGIN}/profile_images/${id}_normal.jpg` : absolute(url);
+};
 // an account's picture as a full URL, X's default one when it has none
 export const avatarUrl = (url: string | null | undefined) => absolute(url ?? null) ?? DEFAULT_AVATAR;
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -47,15 +51,16 @@ export function apiDate(d: Date): string {
 const globalId = (kind: string, id: string) => Buffer.from(`${kind}:${id}`).toString("base64");
 
 // An account from another instance wears the badge that instance gave it,
-// unless this instance stopped showing those (Admin > Federation).
-export const remoteCheckHidden = (u: { instance?: string | null }) => !!u.instance && !settings().remote_checkmarks;
-export const shownVerifiedType = (u: User) => (remoteCheckHidden(u) ? null : u.verified_type);
+// unless this instance stopped showing those (Admin > Federation). A viewer
+// can hide every checkmark for themselves (parody-labels.ts).
+export const checkHidden = (u: { instance?: string | null }) => hidesChecks() || (!!u.instance && !settings().remote_checkmarks);
+export const shownVerifiedType = (u: User) => (checkHidden(u) ? null : u.verified_type);
 
 // Affiliates of an organisation wear X's checkmark next to the organisation's
 // badge, as on X, even without a badge of their own, unless the instance
 // switched that off (Settings: affiliate_checkmarks).
 export const affiliateChecked = (u: User) => !!u.org && feature("affiliate_checkmarks");
-export const isVerified = (u: User) => !remoteCheckHidden(u) && (u.verified_type !== null || affiliateChecked(u));
+export const isVerified = (u: User) => !checkHidden(u) && (u.verified_type !== null || affiliateChecked(u));
 // a business or government badge: what makes an account an organisation on
 // its own, and gives it a square picture
 export const hasOrgBadge = (u: User) => u.verified_type === "business" || u.verified_type === "government";
@@ -261,7 +266,7 @@ export function userResult(u: User) {
 		affiliates_highlighted_label: badgeLabel(u),
 		...(oldClient() ? { xitter_badges: badgeList(u) } : {}),
 		...(isOrganization(u) ? { business_account: { affiliates_count: u.affiliates ?? 0 } } : {}),
-		avatar: { image_url: absolute(u.avatar_url) ?? DEFAULT_AVATAR },
+		avatar: { image_url: avatarSrc(u.avatar_url) ?? DEFAULT_AVATAR },
 		...bioLanguage(u),
 		...(u.banner_url ? { banner: { image_url: absolute(u.banner_url) } } : {}),
 		core: { created_at: apiDate(u.created_at), name: u.name, screen_name: u.screen_name },
@@ -357,7 +362,7 @@ export function legacyUser(u: User) {
 		verified_user_profiles: { super_follows_user_profile: { is_active: false } },
 		verified: oldClient() ? oldVerified(isVerified(u), verification(u).verified_type, (badgeLabel(u) as any).label, badgeList(u)) : false,
 		protected: !!u.protected,
-		profile_image_url_https: oldClient() ? oldAvatar(absolute(u.avatar_url) ?? DEFAULT_AVATAR, pictureShape(u)) : (absolute(u.avatar_url) ?? DEFAULT_AVATAR),
+		profile_image_url_https: oldClient() ? oldAvatar(avatarSrc(u.avatar_url) ?? DEFAULT_AVATAR, pictureShape(u)) : (avatarSrc(u.avatar_url) ?? DEFAULT_AVATAR),
 		...(u.banner_url ? { profile_banner_url: absolute(u.banner_url) } : {}),
 		can_media_tag: u.stats?.mediaTaggable ?? true,
 		// with a default avatar and no bio or banner the client offers its "Set up

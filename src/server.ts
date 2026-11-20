@@ -16,7 +16,7 @@ import { flagSvg } from "./flags";
 import { onboarding } from "./onboarding";
 import { cachedPatch, patchFile, patchText } from "./patch";
 import { clientError, recordError } from "./errors";
-import { asRequest, markStaff, setHideParody, setRequestLanguage, staffGate } from "./staff-access";
+import { asRequest, markStaff, setHidden, setRequestLanguage, staffGate } from "./staff-access";
 import { backupPath, startBackups } from "./backups";
 import { startUpdateChecks } from "./update-check";
 import { memberInvitesRoute } from "./member-invites";
@@ -26,7 +26,7 @@ import { isPlayerPage, playerPage } from "./player-card";
 import { chatMediaRoute, chatSocket, juiceboxProxy, socketUser } from "./chat";
 import { sweepChatUploads } from "./chat-media";
 import { clientBuilds, loadBuild } from "./build";
-import { MEDIA_DIR, mediaUpload, serveMedia } from "./media";
+import { MEDIA_DIR, mediaUpload, serveAvatar, serveMedia } from "./media";
 import { serveScanCopy, startMediaScan } from "./media-scan";
 import { resumeVideos } from "./video";
 import { livePipeline, restRoute } from "./rest";
@@ -534,7 +534,7 @@ async function route(req: Request): Promise<Response | undefined> {
 
 	const viewer = await getViewer(req);
 	setRequestLanguage(viewer?.language ?? undefined);
-	setHideParody(!!viewer?.hide_parody_labels);
+	if (!p.startsWith("/api/")) setHidden({ parody: !!viewer?.hide_parody_labels, checks: !!viewer?.hide_checkmarks });
 	if (req.method === "GET" && url.searchParams.has("client") && !API_PREFIX.test(p)) {
 		const switched = await switchByQuery(url, viewer ?? undefined);
 		if (switched) return switched;
@@ -614,6 +614,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p.startsWith("/media-scan/")) return serveScanCopy(p, url);
 	// uploads stay inside the instance: only signed-in users get them
 	if (p.startsWith("/media/")) return viewer ? serveMedia(req, p, viewer) : new Response("not found", { status: 404 });
+	if (p.startsWith("/profile_images/")) return viewer ? serveAvatar(req, p, viewer) : new Response("not found", { status: 404 });
 	// the admin panel: staff only; everyone else gets the client's not-found page
 	// the panel speaks of the instance's default build (Admin > Client), whatever its staff use
 	if (p.startsWith("/admin/api/")) return withClientDir(CLIENT_DIR, () => adminApi(req, p.slice("/admin/api/".length), viewer));

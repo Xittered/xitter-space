@@ -23,7 +23,7 @@ const RULES: [RegExp, string][] = [
 	[/([\w$]+)\.then\(([\w$]+)=>"linked"===\2\?"xweb":/g, '$1.then($2=>!0?"legacy":'],
 	// The Settings search index is built from X's route list: add our custom GIF
 	// provider page so searching "gif" can open it from the results.
-	[/\blet (\w+)=\(0,[\w$]+\.[\w$]+\)\(\),(\w+)=\[\];(?=for\(let \w+ of \1\)for\(let \w+ of\(\2\.push\()/g, '$&$1.find(group=>group.path==="/settings/account")?.items.push({id:"xitterGifProvider",path:"/settings/xitter/gifs",title:"GIF provider",synonyms:["gif","provider","klipy","tenor","giphy"],isSearchable:true,items:[]});$1.find(group=>group.path==="/settings/account")?.items.push({id:"xitterPostDetails",path:"/settings/xitter/post-details",title:"Post details",synonyms:["post","details","classic","counts","likes","reposts","quotes","twitter"],isSearchable:true,items:[]},{id:"xitterProfileLabels",path:"/settings/xitter/labels",title:"Profile labels",synonyms:["parody","commentary","fan","label","hide"],isSearchable:true,items:[]},{id:"xitterEquicoins",path:"/settings/xitter/merchant",title:"Equicoins",synonyms:["equicoins","money","merchant","payments","purchases"],isSearchable:true,items:[]});'],
+	[/\blet (\w+)=\(0,[\w$]+\.[\w$]+\)\(\),(\w+)=\[\];(?=for\(let \w+ of \1\)for\(let \w+ of\(\2\.push\()/g, '$&$1.find(group=>group.path==="/settings/account")?.items.push({id:"xitterGifProvider",path:"/settings/xitter/gifs",title:"GIF provider",synonyms:["gif","provider","klipy","tenor","giphy"],isSearchable:true,items:[]});$1.find(group=>group.path==="/settings/account")?.items.push({id:"xitterPostDetails",path:"/settings/xitter/post-details",title:"Post details",synonyms:["post","details","classic","counts","likes","reposts","quotes","twitter"],isSearchable:true,items:[]},{id:"xitterProfileLabels",path:"/settings/xitter/labels",title:"Labels and checkmarks",synonyms:["parody","commentary","fan","label","hide","checkmark","verified","blue"],isSearchable:true,items:[]},{id:"xitterEquicoins",path:"/settings/xitter/merchant",title:"Equicoins",synonyms:["equicoins","money","merchant","payments","purchases"],isSearchable:true,items:[]});'],
 	// Settings > Xitter settings: an entry of the client's own in the Settings
 	// list, above Additional resources. Its pane is our index (tidy.ts frames
 	// /settings/xitter), and it stays lit on our pages under /settings/xitter/.
@@ -77,6 +77,7 @@ const RULES: [RegExp, string][] = [
 	[/(_getMedia=\(\)=>\{let\{media:(\w+)\}=this\.props;return \2&&\2\.mediaFile&&)\2\.mediaFile\.isImage\?/g, "$1($2.mediaFile.isImage||$2.mediaFile.isGif)?"],
 	// the upload host is assembled from a variable, which would force https and drop the port
 	[/`https:\/\/\$\{(\w+)\}\/i\/media\//g, "`${location.origin}/i/media/"],
+	[/cdnDomains:\["pbs\.twimg\.com",/g, `cdnDomains:["${PUBLIC_HOSTNAME}","pbs.twimg.com",`],
 	[/"x\.com"/g, `"${PUBLIC_HOSTNAME}"`],
 	// cookie domain; a cookie scoped to the original domain is dropped by the browser
 	[/"\.x\.com"/g, `"${PUBLIC_HOSTNAME}"`],
