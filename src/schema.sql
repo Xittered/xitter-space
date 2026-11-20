@@ -314,13 +314,16 @@ alter table users add column if not exists pinned_post_id bigint references post
 create index if not exists reposts_user_idx on reposts (user_id, id desc);
 
 -- posts and reposts as one ordered stream; a repost's own id places it in time
+alter table posts add column if not exists ad_only boolean not null default false;
 create or replace view feed_items as
 	select p.id as item_id, p.id as post_id, null::bigint as reposter_id, p.user_id as author_id,
 		p.reply_to_id is not null as is_reply, p.created_at
 	from posts p
+	where not p.ad_only
 	union all
 	select r.id, r.post_id, r.user_id, r.user_id, false, r.created_at
-	from reposts r;
+	from reposts r
+	where not exists (select 1 from posts x where x.id = r.post_id and x.ad_only);
 create index if not exists posts_top_level_idx on posts (id) where reply_to_id is null;
 
 -- videos: converted after upload; 'processing' until ffmpeg is done
@@ -1192,11 +1195,11 @@ create or replace function user_stats_posts() returns trigger language plpgsql a
 begin
 	if tg_op = 'INSERT' then
 		insert into user_stats (user_id, posts, articles)
-			select user_id, count(*), count(article_id) from new_rows group by user_id
+			select user_id, count(*), count(article_id) from new_rows where not ad_only group by user_id
 			on conflict (user_id) do update set posts = user_stats.posts + excluded.posts, articles = user_stats.articles + excluded.articles;
 	else
 		update user_stats s set posts = s.posts - d.posts, articles = s.articles - d.articles
-			from (select user_id, count(*) as posts, count(article_id) as articles from old_rows group by user_id) d where s.user_id = d.user_id;
+			from (select user_id, count(*) as posts, count(article_id) as articles from old_rows where not ad_only group by user_id) d where s.user_id = d.user_id;
 	end if;
 	return null;
 end $$;
@@ -1931,3 +1934,40 @@ create table if not exists grok_items (
 	created_at timestamptz not null default now()
 );
 create index if not exists grok_items_conversation on grok_items (conversation_id, id);
+
+create table if not exists ads (
+	id bigint primary key,
+	user_id bigint not null references users (id) on delete cascade,
+	text text not null,
+	url text,
+	budget_cents bigint not null check (budget_cents > 0),
+	spent_cents bigint not null default 0 check (spent_cents >= 0 and spent_cents <= budget_cents),
+	refunded_cents bigint not null default 0 check (refunded_cents >= 0),
+	days int not null check (days > 0),
+	status text not null check (status in ('pending', 'running', 'paused', 'ended', 'rejected', 'cancelled')),
+	reject_reason text,
+	created_at timestamptz not null default now(),
+	reviewed_at timestamptz,
+	reviewed_by bigint references users (id) on delete set null,
+	starts_at timestamptz,
+	ends_at timestamptz
+);
+create index if not exists ads_status_idx on ads (status, ends_at);
+create index if not exists ads_user_idx on ads (user_id, id desc);
+alter table ads add column if not exists ad_only boolean not null default true;
+alter table ads add column if not exists post_id bigint references posts (id) on delete set null;
+alter table ads add column if not exists spent_milli bigint not null default 0;
+alter table ads add column if not exists views int not null default 0;
+create table if not exists ad_views (
+	ad_id bigint not null references ads (id) on delete cascade,
+	viewer_id bigint not null references users (id) on delete cascade,
+	day date not null default current_date,
+	n int not null default 0,
+	last_at timestamptz not null default now(),
+	primary key (ad_id, viewer_id, day)
+);
+alter table ad_views add column if not exists shown int not null default 0;
+alter table ad_views alter column day set default (now() at time zone 'utc')::date;
+alter table ad_views alter column last_at set default '-infinity';
+alter table ads add column if not exists paused_left interval;
+alter table ads add column if not exists paused_at timestamptz;
