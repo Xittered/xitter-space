@@ -20,6 +20,7 @@ const API_HOSTS = ["api", "upload", "caps", "jf"].flatMap((s) => [`${s}.x.com`, 
 const inRegex = (url: string) => url.replace(/[/.]/g, (c) => "\\" + c);
 
 const RULES: [RegExp, string][] = [
+	[/([\w$]+)&&!this\._shouldDisable\(([\w$]+),([\w$]+)\.zF\.ConversationControls\)/g, '($1||$2.user?.id_str===this.context.viewerUserId)&&!this._shouldDisable($2,$3.zF.ConversationControls)'],
 	[/([\w$]+)\.then\(([\w$]+)=>"linked"===\2\?"xweb":/g, '$1.then($2=>!0?"legacy":'],
 	// The Settings search index is built from X's route list: add our custom GIF
 	// provider page so searching "gif" can open it from the results.
@@ -129,6 +130,10 @@ const RULES: [RegExp, string][] = [
 	[
 		/(\w+)\.fillStyle="#FFFFFF",\1\.fillRect\(0,0,(\w+),(\w+)\),(\w+)\}/g,
 		"$4}",
+	],
+	[
+		/(\.then\((\w+)=>\{this\._maybeAutoSave\(\);)(let \w+=\2\.map\(\w+=>\w+\.id\);if\(\(0,[\w$]+\.[\w$]+\)\(\[\.\.\.(\w+)\.media,\.\.\.\2\],this\._maxMediaUploads\)\)\{)/g,
+		'$1{let xitterRoom=Math.max(0,this._maxMediaUploads-$4.media.length);if($2.length>xitterRoom){this.props.addToast({text:"Please choose up to "+this._maxMediaUploads+" photos, videos, or GIFs."});this.props.removeMediaUpload($2.slice(xitterRoom).map(e=>e.id));$2=$2.slice(0,xitterRoom);if(!$2.length)return}}$3',
 	],
 	[
 		/(\w+)=(\w+)\.toDataURL\("image\/jpeg",(\w+)\),(\w+)=\1\.split\(";base64,"\)/g,
