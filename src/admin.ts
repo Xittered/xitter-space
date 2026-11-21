@@ -35,6 +35,7 @@ import { mailEnabled, mailFrom, sendMail } from "./mail";
 import { mailDigests } from "./mail-digest";
 import { toolActions } from "./admin-tools";
 import { hostingActions } from "./hosting-admin";
+import { deployActions } from "./deploys";
 import { stickerActions } from "./stickers";
 import { oauthAppActions } from "./oauth-admin";
 import { hashflagActions } from "./hashflags";
@@ -65,7 +66,7 @@ export const AUDIT_ACTIONS = [
 	"ad_approve", "ad_reject", "ad_stop", "add_affiliate", "add_staff_note", "add_sticker", "archive_import", "article_visibility", "auto_suspend_name", "automod_second_chance",
 	"automod_strike", "backup_schedule", "block_oauth_app", "bulk_status", "bulk_strike", "compress_stored", "create_backup", "create_badge",
 	"create_hashflag", "create_invites", "create_label", "create_org", "create_platform", "create_sticker_pack", "delete_account", "delete_backup",
-	"delete_badge", "delete_community_note", "delete_explore_card", "delete_hashflag", "delete_label", "delete_media", "delete_post", "delete_sticker",
+	"delete_badge", "delete_community_note", "deploy_auto", "deploy_rollback", "deploy_update", "delete_explore_card", "delete_hashflag", "delete_label", "delete_media", "delete_post", "delete_sticker",
 	"delete_sticker_pack", "delete_topic", "download_backup", "edit_profile", "end_hashflag", "escalate", "evasion_signup_refused", "expire_sanction",
 	"federation_accept_key", "federation_block", "federation_drop_media", "federation_pull", "federation_purge", "federation_unblock", "hosting_adopt",
 	"hosting_approve", "hosting_reject", "hosting_revoke", "invite_quota", "money_adjust", "money_remote_shop_update", "money_reverse",
@@ -1074,6 +1075,7 @@ const ACTIONS: Record<string, Action> = {
 
 Object.assign(ACTIONS, toolActions);
 Object.assign(ACTIONS, hostingActions);
+Object.assign(ACTIONS, deployActions);
 Object.assign(ACTIONS, stickerActions);
 Object.assign(ACTIONS, oauthAppActions);
 Object.assign(ACTIONS, hashflagActions);

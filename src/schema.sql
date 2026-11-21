@@ -1567,6 +1567,24 @@ create table if not exists hosting_sessions (
 	csrf text not null,
 	created_at timestamptz not null default now()
 );
+create table if not exists deploys (
+	id bigint primary key,
+	kind text not null check (kind in ('update', 'rollback', 'auto')),
+	state text not null check (state in ('queued', 'running', 'done', 'failed')),
+	target text,
+	sha text,
+	subject text,
+	log text not null default '',
+	requested_by bigint references users (id) on delete set null,
+	created_at timestamptz not null default now(),
+	started_at timestamptz,
+	finished_at timestamptz
+);
+create index if not exists deploys_state_idx on deploys (state) where state in ('queued', 'running');
+create table if not exists deploy_state (
+	id int primary key check (id = 1),
+	auto boolean not null default false
+);
 alter table posts add column if not exists conversation_card jsonb;
 
 alter table posts add column if not exists conversation_card_post_id bigint references posts (id) on delete set null;

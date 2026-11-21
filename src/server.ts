@@ -80,6 +80,7 @@ import { noteAppealsRoute } from "./note-appeals";
 import { decorCatalog, decorFor, decorRoute, decorShop, steamFile } from "./decor";
 import { HOSTING_ON, hostingHandoff, isHostingSite, startHostingChecks } from "./hosting";
 import { portalSite, startPortal } from "./portal";
+import { DEPLOYS_ON, deployAgentRoute } from "./deploys";
 import { nightModeCookies, themeApi, themeExport, themeImport } from "./themes/api";
 import { resolveBackground } from "./themes/css";
 import { themeRoute } from "./themes/page";
@@ -446,6 +447,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	const p = url.pathname;
 	// the hosting application site (hosting.ts) shares this process, not its cookies
 	if (HOSTING_ON && isHostingSite(url.hostname)) return portalSite(req, url);
+	if (DEPLOYS_ON && p === "/_deploy/agent") return deployAgentRoute(req);
 	// for Docker's health check (Dockerfile): the server answers and reaches its database
 	if (p === "/healthz") {
 		const db = await Promise.race([sql`select 1`.then(() => true, () => false), Bun.sleep(3000).then(() => false)]);

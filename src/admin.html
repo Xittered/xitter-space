@@ -496,6 +496,7 @@ const PAGES = {
 	backups: { icon: "backup", title: "Backups", needs: "admin" },
 	client: { icon: "system_update", title: "Client", needs: "admin" },
 	update: { icon: "upgrade", title: "Server update", needs: "admin" },
+	deploys: { icon: "rocket_launch", title: "Deploys", needs: "deploys" },
 	audit: { icon: "history", title: "Audit log" },
 };
 
@@ -505,7 +506,7 @@ const GROUPS = [
 	["People", ["users", "orgs", "invites", "badges"]],
 	["Content", ["stickers", "hashflags", "topics", "cards"]],
 	["Instance", ["settings-account", "settings-limits", "settings-community", "settings-safety", "settings-discovery", "settings-branding", "switches", "money", "email", "apps", "oauth", "federation", "hosting"]],
-	["Staff and system", ["permissions", "security", "audit", "errors", "backups", "client", "update"]],
+	["Staff and system", ["permissions", "security", "audit", "errors", "backups", "client", "update", "deploys"]],
 ];
 function openGroup(g, on) {
 	g.classList.toggle("open", on);
@@ -1583,6 +1584,38 @@ const RENDER = {
 			if (!(await ask("Delete every account, post and file that came from " + b.dataset.purge + "? This can't be undone. Federating again later brings back only what it sends from then on."))) return;
 			act(() => api("federationPurge", { instance: b.dataset.purge }), "Deleted").then(route);
 		});
+	},
+
+	async deploys(main) {
+		const d = await api("deploys");
+		const short = (sha) => (sha ? sha.slice(0, 7) : "");
+		const KIND = { update: "Update", rollback: "Going back", auto: "Auto update" };
+		const STATE = { queued: "Waiting for the deploy agent", running: "Running", done: "Done", failed: "Failed" };
+		const busy = d.jobs.some((j) => j.state === "queued" || j.state === "running");
+		const live = d.jobs.find((j) => j.state === "done");
+		main.innerHTML = "<h1>Deploys</h1>" +
+			'<p class="dim">Puts the newest Xitter main on this server: the deploy agent merges it into this instance\'s branch, runs the unit tests, backs up the database, rebuilds and checks the site answers. It looks for work every minute, so a button here starts within a minute. Going back rebuilds an earlier version and leaves the database as it is, and turns auto update off so the next commit doesn\'t undo it.</p>' +
+			'<div class="cards"><div class="card"><span>Running now</span><b class="code">' + esc(live ? short(live.sha) : "unknown") + "</b>" + (live?.subject ? '<span class="small dim">' + esc(live.subject) + "</span>" : "") + "</div>" +
+			'<div class="card"><span>Auto update</span><b>' + (d.auto ? "On" : "Off") + "</b></div></div>" +
+			'<div class="box" style="margin:16px 0"><label class="row" style="gap:10px"><input type="checkbox" id="dAuto"' + (d.auto ? " checked" : "") + "> <span><b>Update automatically</b><br><span class=\"dim small\">New commits on main go live a few minutes after they land, once the tests pass. A version that fails isn't tried again until main moves.</span></span></label>" +
+			'<div class="row" style="margin-top:12px"><button class="btn primary" id="dNow"' + (busy ? " disabled" : "") + ">Update now</button>" +
+			(d.versions.length > 1 ? '<select id="dBackTo" style="min-width:220px">' + d.versions.slice(1).map((v) => '<option value="' + esc(v.sha) + '">' + esc(short(v.sha) + " · " + (v.subject || "") + " · " + when(v.finished_at)) + "</option>").join("") + '</select><button class="btn danger" id="dBack"' + (busy ? " disabled" : "") + ">Go back</button>" : "") +
+			"</div></div>" +
+			(d.jobs.length ? d.jobs.map((j, i) => '<div class="box" style="margin-bottom:12px"><h2>' + esc(KIND[j.kind] || j.kind) + ": " + esc(STATE[j.state] || j.state) + "</h2>" +
+				'<p class="dim small">' + (j.by ? "by @" + esc(j.by) + ", " : "") + esc(when(j.createdAt)) + (j.sha ? " · " + esc(short(j.sha)) + (j.subject ? " " + esc(j.subject) : "") : j.target ? " · " + esc(short(j.target)) : "") + (j.finishedAt ? " · finished " + esc(when(j.finishedAt)) : "") + "</p>" +
+				(j.log ? "<details" + (i === 0 ? " open" : "") + '><summary class="small">Log</summary><pre class="code" style="max-height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px">' + esc(j.log) + "</pre></details>" : "") + "</div>").join("")
+				: '<div class="empty">Nothing deployed from here yet.</div>');
+		$("#dAuto").onchange = (e) => act(() => api("setAutoDeploy", { on: e.target.checked }), e.target.checked ? "Auto update on" : "Auto update off").then(route);
+		$("#dNow").onclick = async () => {
+			if (!(await ask("Deploy the newest main now? The site restarts for a few seconds."))) return;
+			act(() => api("queueDeploy"), "Queued").then(route);
+		};
+		if ($("#dBack")) $("#dBack").onclick = async () => {
+			const sha = $("#dBackTo").value;
+			if (!(await ask("Go back to " + short(sha) + "? The site restarts, the database stays as it is, and auto update turns off."))) return;
+			act(() => api("queueRollback", { sha }), "Queued").then(route);
+		};
+		if (busy) setTimeout(() => { if (location.hash === "#deploys") route(); }, 5000);
 	},
 
 	async hosting(main) {
