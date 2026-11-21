@@ -1585,6 +1585,10 @@ create table if not exists deploy_state (
 	id int primary key check (id = 1),
 	auto boolean not null default false
 );
+alter table deploy_state add column if not exists every_minutes int not null default 5;
+alter table deploy_state add column if not exists wait_minutes int not null default 3;
+alter table deploy_state add column if not exists window_from int;
+alter table deploy_state add column if not exists window_to int;
 alter table posts add column if not exists conversation_card jsonb;
 
 alter table posts add column if not exists conversation_card_post_id bigint references posts (id) on delete set null;

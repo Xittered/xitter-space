@@ -17,10 +17,25 @@ function agentAllowed(req: Request) {
 	return DEPLOYS_ON && given.length > 0 && timingSafeEqual(digest(given), digest(TOKEN));
 }
 
-async function autoOn() {
-	const [r] = await sql`select auto from deploy_state where id = 1`;
-	return !!r?.auto;
+async function config() {
+	const [r] = await sql`select auto, every_minutes, wait_minutes, window_from, window_to from deploy_state where id = 1`;
+	return {
+		auto: !!r?.auto,
+		every: r?.every_minutes ?? 5,
+		wait: r?.wait_minutes ?? 3,
+		windowFrom: r?.window_from ?? null,
+		windowTo: r?.window_to ?? null,
+	};
 }
+
+const autoOn = async () => (await config()).auto;
+
+const intIn = (v: unknown, min: number, max: number, what: string) => {
+	const n = typeof v === "number" ? v : typeof v === "string" && v.trim() ? Number(v) : NaN;
+	if (!Number.isInteger(n) || n < min || n > max) throw new AdminError(`${what} must be a whole number from ${min} to ${max}.`);
+	return n;
+};
+const hourOrNull = (v: unknown, what: string) => (v === null || v === undefined || v === "" ? null : intIn(v, 0, 23, what));
 
 async function failStale() {
 	await sql`update deploys set state = 'failed', finished_at = now(), log = log || ${"\nthe agent stopped answering, marked failed"}
@@ -36,11 +51,11 @@ export async function deployAgentRoute(req: Request): Promise<Response> {
 	if (b.op === "claim") {
 		await failStale();
 		const [running] = await sql`select id::text, kind from deploys where state = 'running' limit 1`;
-		if (running) return Response.json({ auto: await autoOn(), busy: true });
+		if (running) return Response.json({ ...(await config()), busy: true });
 		const [job] = await sql`update deploys set state = 'running', started_at = now()
 			where id = (select id from deploys where state = 'queued' order by id limit 1)
 			returning id::text, kind, target`;
-		return Response.json({ auto: await autoOn(), job: job ?? null });
+		return Response.json({ ...(await config()), job: job ?? null });
 	}
 	if (b.op === "start") {
 		await failStale();
@@ -99,7 +114,7 @@ export const deployActions: Record<string, Action> = DEPLOYS_ON
 					const versions = await sql`select distinct on (sha) sha, subject, finished_at from deploys
 						where state = 'done' and sha is not null order by sha, finished_at desc`;
 					return {
-						auto: await autoOn(),
+						...(await config()),
 						jobs: jobs.map(jobRow),
 						versions: (versions as any[]).sort((x, y) => +new Date(y.finished_at) - +new Date(x.finished_at)).slice(0, 15),
 					};
@@ -112,6 +127,21 @@ export const deployActions: Record<string, Action> = DEPLOYS_ON
 					await sql`insert into deploy_state (id, auto) values (1, ${on}) on conflict (id) do update set auto = excluded.auto`;
 					await audit(a, "deploy_auto", null, { on });
 					return { auto: on };
+				},
+			},
+			setDeploySettings: {
+				role: "admin",
+				run: async (a, b) => {
+					const every = intIn(b.every, 1, 1440, "Check every");
+					const wait = intIn(b.wait, 0, 120, "Wait after a push");
+					const from = hourOrNull(b.windowFrom, "Window start");
+					const to = hourOrNull(b.windowTo, "Window end");
+					if ((from === null) !== (to === null)) throw new AdminError("Give both window hours, or neither for any time.");
+					await sql`insert into deploy_state (id, every_minutes, wait_minutes, window_from, window_to) values (1, ${every}, ${wait}, ${from}, ${to})
+						on conflict (id) do update set every_minutes = excluded.every_minutes, wait_minutes = excluded.wait_minutes,
+							window_from = excluded.window_from, window_to = excluded.window_to`;
+					await audit(a, "deploy_settings", null, { every, wait, from, to });
+					return config();
 				},
 			},
 			queueDeploy: {
