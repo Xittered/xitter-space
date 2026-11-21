@@ -20,7 +20,7 @@ import { isOrganizationSql } from "./users";
 import { flagValue, unknownFlag } from "./flags";
 import { isId, newId } from "./ids";
 import { createInvite, staffHandleProblem } from "./invites";
-import { forgetHeld, handleHeld, retireAccount } from "./held";
+import { forgetHeld, retireAccount } from "./held";
 import { activeStrikes, shutOut } from "./moderation";
 import { REASONS } from "./reports";
 import { startSweep, sweepState } from "./media-compress";
@@ -72,7 +72,7 @@ export const AUDIT_ACTIONS = [
 	"resolve_errors", "review_community_note_appeal", "revoke_api_tokens", "revoke_invite", "revoke_platform", "revoke_session", "revoke_strike",
 	"rollback_client", "save_automod", "save_operations", "save_security", "save_settings", "self_update", "self_update_rollback", "send_staff_message",
 	"send_test_mail", "set_badge", "set_badges", "set_clients", "set_feature_switch", "set_flag", "set_never_sensitive", "set_notes_access", "set_post_counts",
-	"set_post_notice", "set_post_visibility", "set_profile_label", "set_remote_checkmarks", "set_role", "set_signup_mode", "set_staff_permissions",
+	"set_post_note", "remove_post_note", "set_post_notice", "set_post_visibility", "set_profile_label", "set_remote_checkmarks", "set_role", "set_signup_mode", "set_staff_permissions",
 	"set_status", "set_translator", "set_user_client", "set_user_counts", "sign_out", "superadmin_emergency_block", "superadmin_emergency_lift", "suspend_blocked_names",
 	"temporary_status", "unblock_oauth_app", "update_client", "upload_branding",
 ];
@@ -465,7 +465,6 @@ const ACTIONS: Record<string, Action> = {
 			if (changes.screen_name) {
 				const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${changes.screen_name}) and id <> ${id}::bigint`;
 				if (taken) throw new AdminError("That handle is taken.");
-				if (await handleHeld(changes.screen_name, id)) throw new AdminError("That handle looks too much like another account's.");
 			}
 			await sql`update users set ${sql(changes)} where id = ${id}::bigint`;
 			if (changes.screen_name && changes.screen_name !== old.screen_name)
@@ -630,7 +629,6 @@ const ACTIONS: Record<string, Action> = {
 			const name = String(b.name ?? "").trim() || screenName;
 			if (!/^[A-Za-z0-9_]{4,15}$/.test(screenName)) throw new AdminError("Handles are 4 to 15 letters, digits or underscores.");
 			if (superadminNameHere(screenName)) throw new AdminError("That handle is reserved.");
-			if (await handleHeld(screenName)) throw new AdminError("That handle looks too much like another account's.");
 			const [taken] = await sql`select 1 from users where lower(screen_name) = lower(${screenName})`;
 			if (taken) throw new AdminError("That handle is taken.");
 			const password = randomPassword();
@@ -686,7 +684,7 @@ const ACTIONS: Record<string, Action> = {
 			const q = String(b.q ?? "").trim();
 			const author = String(b.author ?? "").trim().replace(/^@/, "");
 			const match = sql`(${q} = '' or p.text ilike ${like(q)}) and (${author} = '' or lower(u.screen_name) = lower(${author}))`;
-			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, p.reply_to_id::text as reply_to_id, u.id::text as user_id, u.screen_name, u.name,
+			const rows = await sql`select p.id::text as id, p.text, p.created_at, p.hidden, p.sensitive, p.notice, p.count_overrides, (select n.text from community_notes n where n.post_id = p.id and n.staff limit 1) as staff_note, p.reply_to_id::text as reply_to_id, u.id::text as user_id, u.screen_name, u.name,
 				(select c.screen_name from users c where c.id = p.circle_owner_id) as circle_owner,
 				(select count(*)::int from likes l where l.post_id = p.id) as likes,
 				(select count(*)::int from media m where m.post_id = p.id) as media
