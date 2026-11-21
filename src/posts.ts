@@ -10,7 +10,7 @@ import { feature, hasBlockedPhrase, settings } from "./settings";
 import { postLimitFor, weightedLength } from "./textlen";
 import type { PostRow } from "./model";
 import { articlesByIds } from "./articles";
-import { blockedFor, federatedHiddenFor, hasMutedWord, isBlockedEitherWay, mutedFor, outOfView, protectedFor, replyLimited, suspendedFor } from "./blocks";
+import { blockedFor, federatedHiddenFor, hasMutedWord, isBlockedEitherWay, mutedFor, outOfView, protectedFor, replyLimited, shadowedFor, suspendedFor } from "./blocks";
 import { staffViewer } from "./staff-access";
 import { fetchPreview, linkCard, linksIn, previewable, previewsFor, statusLinkOf } from "./links";
 import { paymentCards, rewardLike } from "./money";
@@ -20,7 +20,7 @@ import { webSource } from "./platforms";
 import { pollCard, pollsByIds } from "./polls";
 import { toUser, userCols, usersByIds } from "./users";
 import { lookupRemoteUser } from "./federation-sync";
-import { saveMentions } from "./mentions";
+import { mentionsIn, saveMentions } from "./mentions";
 import { cleanText } from "./text-clean";
 import { replyControl, replyRestricted } from "./reply-controls";
 import { noteStatus } from "./note-score";
@@ -226,6 +226,21 @@ export async function checkLength(userId: string, text: string, db: typeof sql =
 	if (weightedLength(text) > limit) throw new PostError(`Posts are limited to ${limit.toLocaleString("en-US")} characters.`, 186);
 }
 
+async function checkMentions(userId: string, text: string, role: string | null, db: typeof sql, editing?: string) {
+	const limits = settings().mention_limits;
+	if (!limits.enabled || role) return;
+	const keys = [...new Set(mentionsIn(text).map((m) => m.key))];
+	if (!keys.length) return;
+	const [me] = await db`select lower(screen_name) as n from users where id = ${userId}::bigint`;
+	const named = keys.filter((k) => k !== me?.n);
+	if (!named.length) return;
+	if (named.length > limits.per_post) throw new PostError(`A post can mention up to ${limits.per_post} ${limits.per_post === 1 ? "account" : "accounts"}.`, 186);
+	const [sent] = await db`select count(*)::int as n from post_mentions m join posts p on p.id = m.post_id
+		where p.user_id = ${userId}::bigint and m.user_id <> ${userId}::bigint and p.id >= ${idAt(Date.now() - 86_400_000)}::bigint
+			${editing ? db`and p.id <> ${editing}::bigint` : db``}`;
+	if (sent.n + named.length > limits.per_day) throw new PostError(`You've reached the limit of ${limits.per_day} mentions a day. Try again later.`, 185);
+}
+
 export async function refuseHate(userId: string, text: string, where: Parameters<typeof automodStrike>[2] = "post") {
 	const hit = hateIn(text);
 	if (!hit) return;
@@ -237,6 +252,8 @@ export async function editPost(userId: string, postId: string, input: string): P
 	const text = cleanText(input, { blankLines: 2 });
 	// the length first: the checks below scan the whole text
 	await checkLength(userId, text);
+	const [editor] = await sql`select role from users where id = ${userId}::bigint`;
+	await checkMentions(userId, text, editor?.role ?? null, sql, postId);
 	await refuseHate(userId, text);
 	if (hasBlockedPhrase(text)) throw new PostError("Your post contains a phrase this instance doesn't allow.", 186);
 	if (!text.trim()) throw new PostError("Your post is empty.", 170);
@@ -299,6 +316,8 @@ export type FeedQuery = {
 const originalAuthor = () => sql`(select x.user_id from posts x where x.id = f.post_id)`;
 export const homeHidden = (viewerId: string) => sql`f.author_id not in ${blockedFor(viewerId)} and ${originalAuthor()} not in ${blockedFor(viewerId)}
 	and f.author_id not in ${outOfView(viewerId)} and ${originalAuthor()} not in ${outOfView(viewerId)}
+	and f.author_id not in ${shadowedFor(viewerId)} and ${originalAuthor()} not in ${shadowedFor(viewerId)}
+	and (f.reposter_id is null or f.reposter_id not in ${shadowedFor(viewerId)})
 	and f.author_id not in ${protectedFor(viewerId)} and ${originalAuthor()} not in ${protectedFor(viewerId)}
 	and f.author_id not in ${mutedFor(viewerId)} and ${originalAuthor()} not in ${mutedFor(viewerId)}
 	and f.author_id not in ${federatedHiddenFor(viewerId)} and ${originalAuthor()} not in ${federatedHiddenFor(viewerId)}
@@ -499,6 +518,7 @@ export async function createPost(userId: string, input: string, opts: { replyToI
 		if (made.n >= cap) throw new PostError(`You've reached the limit of ${cap} ${reply ? (cap === 1 ? "reply" : "replies") : cap === 1 ? "post" : "posts"} a day. Try again later.`, 185);
 	}
 	await checkLength(userId, text, db);
+	await checkMentions(userId, text, author.role, db);
 	await refuseHate(userId, text);
 	if (hasBlockedPhrase(text)) throw new PostError("Your post contains a phrase this instance doesn't allow.", 186);
 	const id = newId();

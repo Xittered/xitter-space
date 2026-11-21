@@ -25,7 +25,7 @@ import { PUBLIC_ORIGIN } from "./config";
 import { sql } from "./db";
 import { trendScope } from "./explore-settings";
 import { activeCards, cardsEntry } from "./explore-cards";
-import { isBlockedEitherWay, blockedIds, blockedFor, outOfView, protectedFor } from "./blocks";
+import { isBlockedEitherWay, blockedIds, blockedFor, outOfView, protectedFor, shadowedFor } from "./blocks";
 import { chargeView, pickAd } from "./ads";
 import { feature, settings } from "./settings";
 import { freshAsOf, newView, rankedFeed } from "./ranking";
@@ -67,7 +67,7 @@ import {
 } from "./posts";
 import { lookupRemoteUser } from "./federation-sync";
 import { TopicError, setTopicState, suggestedTopics, topicById, topicContext, topicFeedbackActions, topicFeedbackKeys, topicResult, topicsForPosts } from "./topics";
-import { affiliatesOf, followList, localName, suggestedUsers, userById, userByName, usersByIds } from "./users";
+import { affiliatesOf, followList, localName, setFollow, suggestedUsers, userById, userByName, usersByIds } from "./users";
 
 type Vars = Record<string, any>;
 type Handler = (viewer: Viewer, vars: Vars) => Promise<unknown> | unknown;
@@ -156,7 +156,7 @@ async function boostedPost(viewer: Viewer, onPage: string[]) {
 	if (!feature("money")) return undefined;
 	const [b] = await sql`select b.post_id::text as id from post_boosts b join posts p on p.id = b.post_id
 		where b.ends_at > now() and not p.hidden and p.user_id <> ${viewer.id}::bigint
-			and p.user_id not in ${blockedFor(viewer.id)} and p.user_id not in ${outOfView(viewer.id)}
+			and p.user_id not in ${blockedFor(viewer.id)} and p.user_id not in ${outOfView(viewer.id)} and p.user_id not in ${shadowedFor(viewer.id)}
 			and not (b.post_id = any(${sql.array(onPage, "INT8")}))
 		order by random() limit 1`;
 	return b ? getPost(viewer.id, b.id) : undefined;
@@ -814,6 +814,11 @@ const handlers: Record<string, Handler> = {
 	TopicUnfollow: topicState("unfollow"),
 	TopicNotInterested: topicState("not_interested"),
 	TopicUndoNotInterested: topicState("undo_not_interested"),
+	RemoveFollower: async (v: Viewer, vars: Vars) => {
+		const id = String(vars.target_user_id ?? "");
+		if (/^\d{1,19}$/.test(id)) await setFollow(id, v.id, false);
+		return { data: { remove_follower: { unfollow_success_reason: "Unfollowed" } } };
+	},
 	TopicToFollowSidebar: async (v) => {
 		const topics = await suggestedTopics(v.id);
 		const entries = topics.length

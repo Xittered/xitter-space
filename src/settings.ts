@@ -73,6 +73,8 @@ const DEFAULTS = {
 	post_limits: { none: 4000, blue: 25000, business: 128000, government: 256000 },
 	// posts and replies each account may make in any 24 hours; staff have none
 	daily_caps: { enabled: true, posts: 1000, replies: 3000 },
+	// distinct accounts one post may mention, and mentions an account may send in any 24 hours; staff have none
+	mention_limits: { enabled: true, per_post: 10, per_day: 300 },
 	// shown above every timeline until the viewer closes it; a new id shows it again
 	announcement: { id: "", text: "", link: "", buttons: [] as { label: string; url: string }[] },
 	// handles every new account follows
@@ -146,7 +148,7 @@ const DEFAULTS = {
 	// network_totals: share this instance's totals with peers and show the network's
 	money: { starting_cents: 500, max_transfer_cents: 100_000, like_cents: 50, feed: "", follow_network: false, peer_daily_cents: 100_000, move_balance: true, network_totals: false },
 	// money shop: listings are in money_shop_items; only approved announcements are shown
-	ads: { enabled: false, min_spend_cents: 500, base_cpm_cents: 20, price_scale_cents: 10_000, economy_cpm_ppm: 20, demand_share_pct: 1, max_days: 7, max_pending: 3, reject_refund_pct: 70, min_viewer_age_days: 3 },
+	ads: { enabled: true, min_spend_cents: 500, base_cpm_cents: 20, price_scale_cents: 10_000, economy_cpm_ppm: 20, demand_share_pct: 1, max_days: 7, max_pending: 3, reject_refund_pct: 70, min_viewer_age_days: 3 },
 	money_shop: { enabled: false, announcement: null as null | { id: string; text: string; buttons: { label: string; url: string }[] } },
 	// client-choice.ts: which web client people get when the instance serves more
 	// than one ("" for the CLIENT_DIR build), and whether each person may pick

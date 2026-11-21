@@ -21,6 +21,7 @@ import { flagValue, unknownFlag } from "./flags";
 import { isId, newId } from "./ids";
 import { createInvite, staffHandleProblem } from "./invites";
 import { forgetHeld, retireAccount } from "./held";
+import { forgetAllRankings } from "./ranking";
 import { activeStrikes, shutOut } from "./moderation";
 import { REASONS } from "./reports";
 import { startSweep, sweepState } from "./media-compress";
@@ -40,6 +41,7 @@ import { hashflagActions } from "./hashflags";
 import { switchActions } from "./feature-switches";
 import { moneyActions } from "./money-admin";
 import { adActions } from "./ads-admin";
+import { impersonateActions } from "./impersonate";
 import { AFFILIATION_LIMIT } from "./org-manage";
 import { staffGate } from "./staff-access";
 import { countryCode, countryDisplayName } from "./countries";
@@ -72,7 +74,7 @@ export const AUDIT_ACTIONS = [
 	"resolve_errors", "review_community_note_appeal", "revoke_api_tokens", "revoke_invite", "revoke_platform", "revoke_session", "revoke_strike",
 	"rollback_client", "save_automod", "save_operations", "save_security", "save_settings", "self_update", "self_update_rollback", "send_staff_message",
 	"send_test_mail", "set_badge", "set_badges", "set_clients", "set_feature_switch", "set_flag", "set_never_sensitive", "set_notes_access", "set_post_counts",
-	"set_post_note", "remove_post_note", "set_post_notice", "set_post_visibility", "set_profile_label", "set_remote_checkmarks", "set_role", "set_signup_mode", "set_staff_permissions",
+	"set_post_note", "remove_post_note", "impersonate", "reveal_staff_ips", "shadow_ban", "lift_shadow_ban", "set_post_notice", "set_post_visibility", "set_profile_label", "set_remote_checkmarks", "set_role", "set_signup_mode", "set_staff_permissions",
 	"set_status", "set_translator", "set_user_client", "set_user_counts", "sign_out", "superadmin_emergency_block", "superadmin_emergency_lift", "suspend_blocked_names",
 	"temporary_status", "unblock_oauth_app", "update_client", "upload_branding",
 ];
@@ -411,7 +413,7 @@ const ACTIONS: Record<string, Action> = {
 		role: "support",
 		run: async (a, b) => {
 			const id = idOf(b.id);
-			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.banner_url, u.based_in_override, u.country, u.signup_country, u.count_overrides, u.decor, u.notes_writer, u.never_sensitive, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance, u.preferences->>'web_client' as web_client,
+			const [u] = await sql`select ${userListCols}, ${allows(a.role, "invites") ? sql`u.invite_code` : sql`null::text as invite_code`}, u.bio, u.location, u.website, u.banner_url, u.based_in_override, u.country, u.signup_country, u.count_overrides, u.decor, u.notes_writer, u.never_sensitive, u.shadow_banned, u.org_badge_id::text, u.status_until, u.parody_label, u.label_id::text, u.instance, u.preferences->>'web_client' as web_client,
 				(select coalesce(json_agg(ub.badge_id::text order by ub.position), '[]') from user_badges ub where ub.user_id = u.id) as badge_ids,
 				(select count(*)::int from sessions s where s.user_id = u.id) as sessions,
 				(select count(*)::int from api_tokens t where t.user_id = u.id) as api_tokens,
@@ -526,6 +528,20 @@ const ACTIONS: Record<string, Action> = {
 			await sql`update users set status = ${status}, status_until = null, status_restore = null, deactivated_at = null where id = ${id}::bigint`;
 			if (status === "suspended") await shutOut(id);
 			await audit(a, "set_status", id, { status, reason: String(b.reason ?? "").slice(0, 500) || undefined });
+			return {};
+		},
+	},
+
+	setShadowBan: {
+		role: "moderator",
+		run: async (a, b) => {
+			const id = idOf(b.id);
+			if (id === a.id) throw new AdminError("You can't shadow ban yourself.");
+			await guard(a, id);
+			const on = !!b.on;
+			await sql`update users set shadow_banned = ${on} where id = ${id}::bigint`;
+			forgetAllRankings();
+			await audit(a, on ? "shadow_ban" : "lift_shadow_ban", id, { reason: String(b.reason ?? "").slice(0, 500) || undefined });
 			return {};
 		},
 	},
@@ -876,6 +892,30 @@ const ACTIONS: Record<string, Action> = {
 				await setSetting("daily_caps", { enabled: !!b.daily_caps.enabled, posts: cap(b.daily_caps.posts, "post"), replies: cap(b.daily_caps.replies, "reply") });
 				changed.push("daily_caps");
 			}
+			if (b.ads && typeof b.ads === "object") {
+				const num = (v: unknown, name: string, min: number, max: number) => {
+					const x = Number(v);
+					if (!Number.isInteger(x) || x < min || x > max) throw new AdminError(`${name} must be a whole number from ${min} to ${max}.`);
+					return x;
+				};
+				await setSetting("ads", {
+					...s.ads,
+					enabled: !!b.ads.enabled,
+					min_spend_cents: num(b.ads.min_spend_cents, "The smallest budget", 1, 10_000_000),
+					max_days: num(b.ads.max_days, "The longest run", 1, 365),
+					reject_refund_pct: num(b.ads.reject_refund_pct, "The refund on rejection", 0, 100),
+				});
+				changed.push("ads");
+			}
+			if (b.mention_limits && typeof b.mention_limits === "object") {
+				const cap = (v: unknown, name: string, max: number) => {
+					const x = Number(v);
+					if (!Number.isInteger(x) || x < 1 || x > max) throw new AdminError(`Mentions ${name} must be a whole number from 1 to ${max}.`);
+					return x;
+				};
+				await setSetting("mention_limits", { enabled: !!b.mention_limits.enabled, per_post: cap(b.mention_limits.per_post, "per post", 50), per_day: cap(b.mention_limits.per_day, "a day", 100_000) });
+				changed.push("mention_limits");
+			}
 			if (b.announcement && typeof b.announcement === "object") {
 				const text = String(b.announcement.text ?? "").trim().slice(0, 500);
 				const raw = Array.isArray(b.announcement.buttons) ? b.announcement.buttons : [];
@@ -1040,6 +1080,7 @@ Object.assign(ACTIONS, hashflagActions);
 Object.assign(ACTIONS, switchActions);
 Object.assign(ACTIONS, moneyActions);
 Object.assign(ACTIONS, adActions);
+Object.assign(ACTIONS, impersonateActions);
 
 // every permission names real actions, and its default is the role written on them
 for (const [key, p] of Object.entries(PERMISSIONS))
