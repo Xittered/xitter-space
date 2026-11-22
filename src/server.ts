@@ -84,6 +84,7 @@ import { DEPLOYS_ON, deployAgentRoute } from "./deploys";
 import { nightModeCookies, themeApi, themeExport, themeImport } from "./themes/api";
 import { resolveBackground } from "./themes/css";
 import { themeRoute } from "./themes/page";
+import { fontRoute } from "./font-settings";
 import { readPrefs } from "./themes/validate";
 import { serveFont } from "./fonts";
 import { migrationApi } from "./migration";
@@ -663,6 +664,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/account/organisation" && viewer) return orgRoute(req, viewer);
 	if (p === "/account/decor" && viewer) return decorRoute(req, viewer);
 	if (p === "/account/theme" && viewer) return themeRoute(req, viewer);
+	if (p === "/account/font" && viewer) return fontRoute(req, viewer);
 	if (p === "/account/migrate" && viewer) return migrateRoute(req, viewer);
 	if ((p === "/account/money" || p.startsWith("/account/money/")) && viewer) return moneyRoute(req, viewer);
 	if (p === "/account/merchant" && viewer) return merchantRoute(req, viewer);
