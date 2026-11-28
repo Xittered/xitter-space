@@ -71,8 +71,12 @@ export const hostingActions: Record<string, Action> = HOSTING_ON
 					if (r.state !== "pending") throw new AdminError("Only pending applications can be approved.");
 					if ((await recordsFor(r.name)).length) throw new AdminError(`${fqdn(r.name)} already has a DNS record. Remove it in Cloudflare first.`);
 					const made = await cf("POST", "/dns_records", { type: r.record_type, name: fqdn(r.name), content: r.target, proxied: false, ttl: 1, comment: `xitter hosted instance ${r.id}` });
-					await sql`update hosted_instances set state = 'approved', dns_record_id = ${made.id}, reviewed_by = ${a.id}::bigint, reviewed_at = now(),
-						review_note = ${note(b.note) || null}, updated_at = now() where id = ${r.id}::bigint`;
+					const [done] = await sql`update hosted_instances set state = 'approved', dns_record_id = ${made.id}, reviewed_by = ${a.id}::bigint, reviewed_at = now(),
+						review_note = ${note(b.note) || null}, updated_at = now() where id = ${r.id}::bigint and state = 'pending' and dns_record_id is null returning id`;
+					if (!done) {
+						await cf("DELETE", `/dns_records/${made.id}`).catch(() => {});
+						throw new AdminError("Only pending applications can be approved.");
+					}
 					await audit(a, "hosting_approve", r.id, { name: r.name, target: r.target });
 					return {};
 				}),
@@ -107,7 +111,9 @@ export const hostingActions: Record<string, Action> = HOSTING_ON
 				run: wrap(async (a, b) => {
 					const r = await row(idOf(b.id));
 					if (r.state !== "pending") throw new AdminError("Only pending applications can be rejected.");
-					await sql`update hosted_instances set state = 'rejected', reviewed_by = ${a.id}::bigint, reviewed_at = now(), review_note = ${note(b.note) || null}, updated_at = now() where id = ${r.id}::bigint`;
+					const [done] = await sql`update hosted_instances set state = 'rejected', reviewed_by = ${a.id}::bigint, reviewed_at = now(), review_note = ${note(b.note) || null}, updated_at = now()
+						where id = ${r.id}::bigint and state = 'pending' returning id`;
+					if (!done) throw new AdminError("Only pending applications can be rejected.");
 					await audit(a, "hosting_reject", r.id, { name: r.name });
 					return {};
 				}),

@@ -265,8 +265,9 @@ export async function applyRoutes(req: Request, url: URL): Promise<Response> {
 		if (p === "/apply") return apply(me, f!);
 		const [mine] = await sql`select id::text, state, dns_record_id, last_check_at from hosted_instances where user_id = ${me.id}::bigint and state in ('pending', 'approved', 'live')`;
 		if (p === "/withdraw" && mine) {
-			if (mine.dns_record_id) await cf("DELETE", `/dns_records/${mine.dns_record_id}`).catch(() => {});
-			await sql`update hosted_instances set state = 'withdrawn', dns_record_id = null, updated_at = now() where id = ${mine.id}::bigint`;
+			const [gone] = await sql`with old as (select id, dns_record_id from hosted_instances where id = ${mine.id}::bigint and state in ('pending', 'approved', 'live') for update)
+				update hosted_instances h set state = 'withdrawn', dns_record_id = null, updated_at = now() from old where h.id = old.id returning old.dns_record_id`;
+			if (gone?.dns_record_id) await cf("DELETE", `/dns_records/${gone.dns_record_id}`).catch(() => {});
 		}
 		if (p === "/check" && mine && ["approved", "live"].includes(mine.state) && !(mine.last_check_at && Date.now() - new Date(mine.last_check_at).getTime() < 60_000)) await runCheck(mine.id);
 		return redirect("/apply");
