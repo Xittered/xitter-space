@@ -21,7 +21,7 @@ import type { User, Viewer } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
 import { verifyChatToken } from "./chat-token";
 import { chatMedia } from "./chat-media";
-import { sql } from "./db";
+import { holdLock, sql } from "./db";
 import { absolute } from "./media";
 import { newId } from "./ids";
 import { hit } from "./ratelimit";
@@ -223,8 +223,23 @@ export class ChatError extends Error {
 // A direct conversation's id names its two members, smaller id first:
 // "<a>-<b>" (older clients wrote "<a>:<b>").
 function directMembers(id: string): [string, string] | undefined {
-	const m = /^(\d{1,19})[-:](\d{1,19})$/.exec(id);
-	return m ? [m[1], m[2]] : undefined;
+	const m = /^([1-9]\d{0,18})[-:]([1-9]\d{0,18})$/.exec(id);
+	if (!m || BigInt(m[2]) > 9223372036854775807n || BigInt(m[1]) >= BigInt(m[2])) return undefined;
+	return [m[1], m[2]];
+}
+
+export async function mayMessage(senderId: string, recipientId: string, consented = false): Promise<boolean> {
+	const [row] = await sql`select s.status, s.verified_type is not null as verified, r.preferences #>> '{dm_settings,allow_dms_from}' as allow,
+		exists (select 1 from follows where follower_id = r.id and followee_id = s.id) as follows,
+		exists (select 1 from chat_trust where user_id = r.id and trusted_id = s.id) as trusts,
+		exists (select 1 from blocks where (blocker_id = r.id and blocked_id = s.id) or (blocker_id = s.id and blocked_id = r.id)) as blocked
+		from users s, users r where s.id = ${senderId}::bigint and r.id = ${recipientId}::bigint`;
+	if (!row) throw new ChatError("Account unavailable.");
+	if (row.blocked) throw new ChatError("Messaging is blocked.");
+	if (row.status === "restricted" && !row.follows) throw new ChatError("Your account can't message this recipient.", 326);
+	if (consented || row.follows || row.trusts) return true;
+	if (row.allow === "following" || (row.allow === "verified" && !row.verified)) throw new ChatError("This account doesn't accept messages from you.");
+	return false;
 }
 
 async function restrictedCanMessage(viewerId: string, conversationId: string) {
@@ -252,9 +267,13 @@ async function joinable(viewerId: string, conversationId: string): Promise<strin
 		if (pair[0] === pair[1]) throw new ChatError("Choose another recipient.");
 		await writable(viewerId, pair);
 		const peer = pair.find((id) => id !== viewerId)!;
-		const [trusted] = await sql`select 1 where exists (select 1 from follows where follower_id = ${peer}::bigint and followee_id = ${viewerId}::bigint)
-			or exists (select 1 from chat_trust where user_id = ${peer}::bigint and trusted_id = ${viewerId}::bigint)`;
-		await sql`insert into chat_members (conversation_id, user_id, accepted) values (${conversationId}, ${viewerId}::bigint, true), (${conversationId}, ${peer}::bigint, ${!!trusted})
+		const [peerRow] = await sql`select accepted from chat_members where conversation_id = ${conversationId} and user_id = ${peer}::bigint`;
+		const trusted = await mayMessage(viewerId, peer, !!peerRow?.accepted);
+		const sibling = conversationId.includes("-") ? conversationId.replace("-", ":") : conversationId.replace(":", "-");
+		await sql`insert into chat_members (conversation_id, user_id, accepted, muted, archived)
+			select ${conversationId}, u.id, u.accepted, coalesce(s.muted, false), coalesce(s.archived, false)
+			from (values (${viewerId}::bigint, true), (${peer}::bigint, ${trusted})) u(id, accepted)
+			left join chat_members s on s.conversation_id = ${sibling} and s.user_id = u.id
 			on conflict (conversation_id, user_id) do nothing`;
 		return pair;
 	}
@@ -325,7 +344,10 @@ async function stamp(ev: Struct, senderId: string, conversationId: string): Prom
 
 // detail kinds (field 7's one field)
 const KIND = { message: 1, keyChange: 3, groupChange: 4, typing: 6, delete: 7, conversationDelete: 8, read: 12, unread: 13 } as const;
-const kindOf = (ev: Struct) => Number(Object.keys(thrift.fields(ev[7]) ?? {})[0] ?? 0);
+const kindOf = (ev: Struct) => {
+	const arms = Object.keys(thrift.fields(ev[7]) ?? {});
+	return arms.length === 1 ? Number(arms[0]) : 0;
+};
 
 async function store(seq: string, ev: Struct, senderId: string, conversationId: string, audienceId: string | null = null): Promise<Uint8Array> {
 	const bytes = thrift.encode(ev);
@@ -358,8 +380,18 @@ async function withRequestFlags<T extends { event: Buffer }>(viewerId: string, r
 // --- the socket: frames are Thrift structs; {1: event} and {3: {1: [events]}}
 // carry events, {2: instruction} the rest (2 is keep-alive)
 
-type SocketData = { userId: string };
+type SocketData = { userId: string; sid?: string };
 const sockets = new Map<string, Set<ServerWebSocket<SocketData>>>();
+
+export async function closeRevokedSockets(userIds: string[] = [...sockets.keys()]) {
+	const open = userIds.flatMap((id) => [...(sockets.get(id) ?? [])].filter((ws) => ws.data.sid));
+	if (!open.length) return;
+	const rows = await sql`select encode(sha256(convert_to(token, 'UTF8')), 'hex') as sid, token from sessions where user_id = any(${sql.array(userIds, "INT8")})`;
+	const live = new Set(rows.flatMap((r: { sid: string; token: string }) => [r.sid, r.token]));
+	for (const ws of open) if (!live.has(ws.data.sid!)) ws.close(4001, "signed out");
+}
+
+setInterval(() => void closeRevokedSockets().catch(() => {}), 30_000).unref();
 
 function deliver(userIds: string[], events: Uint8Array[], except?: ServerWebSocket<SocketData>) {
 	if (!events.length) return;
@@ -422,6 +454,19 @@ function groupText(value: unknown, max: number): string | null {
 	return text;
 }
 
+function webUrl(value: unknown): string | null {
+	if (typeof value !== "string" || !value) return null;
+	try {
+		return /^https?:$/.test(new URL(value).protocol) ? value : null;
+	} catch {
+		return null;
+	}
+}
+
+function groupAvatar(value: unknown): string | null {
+	return webUrl(groupText(value, 2048));
+}
+
 // --- the inbox
 
 type Vars = Record<string, any>;
@@ -459,7 +504,7 @@ async function conversationData(viewerId: string, conversationId: string) {
 			is_grok_enabled: false,
 			participants_results: participants,
 			...(!direct && group ? {
-				group_metadata: { __typename: "XChatGroupMetadata", ...group.metadata,
+				group_metadata: { __typename: "XChatGroupMetadata", ...group.metadata, group_avatar_url: webUrl(group.metadata.group_avatar_url),
 					admin_settings: { __typename: "XChatGroupAdminSettings", ...Object.fromEntries(
 						["add_member", "edit_group_info", "send_message", "start_call", "edit_message_ttl", "block_screen_capture"].map((field) => [field, typeof group.metadata.admin_settings?.[field] === "boolean" ? group.metadata.admin_settings[field] : !["send_message", "start_call"].includes(field)]),
 					) },
@@ -511,6 +556,7 @@ async function inbox(viewerId: string) {
 // --- GraphQL operations
 
 const ids = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x) => typeof x === "string" && /^\d{1,19}$/.test(x)).slice(0, 100) : []);
+const conversationIds = (v: unknown): string[] => (Array.isArray(v) ? [...new Set(v.map(String))].slice(0, 100) : []);
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
 
 function decodeBlob(value: unknown): Struct {
@@ -525,7 +571,7 @@ async function actionEvents(v: Viewer, conversationId: string, actions: any[], a
 	for (const action of actions ?? []) {
 		if (!action?.encoded_message_event_detail) throw new ChatError("Missing event detail.");
 		const detail = thrift.decode(thrift.fromBase64(action.encoded_message_event_detail));
-		if (!allowed.includes(Number(Object.keys(detail)[0]))) throw new ChatError("Unexpected event kind.");
+		if (Object.keys(detail).length !== 1 || !allowed.includes(Number(Object.keys(detail)[0]))) throw new ChatError("Unexpected event kind.");
 		const sig = action?.message_event_signature ?? {};
 		const ev: Struct = { 2: str(String(action.message_id ?? crypto.randomUUID())), 7: struct(detail),
 			9: struct({ 1: str(String(sig.signature ?? "")), 2: str(String(sig.public_key_version ?? "")), 3: str(String(sig.signature_version ?? "7")) }) };
@@ -553,6 +599,30 @@ async function groupAdmin(v: Viewer, conversationId: string) {
 	const [group] = await sql`select creator_id::text, metadata from chat_conversations where id = ${conversationId} and created`;
 	if (!group || !(group.metadata.admins ?? [group.creator_id]).includes(v.id)) throw new ChatError("Group admin required.");
 	return group;
+}
+
+async function groupInvites(adderId: string, added: string[], current: string[]): Promise<Map<string, boolean>> {
+	const everyone = sql.array([...new Set([...current, ...added])], "INT8");
+	const invited = sql.array(added, "INT8");
+	const [blocked] = await sql`select 1 from blocks where (blocker_id = any(${everyone}) and blocked_id = any(${invited}))
+		or (blocked_id = any(${everyone}) and blocker_id = any(${invited})) limit 1`;
+	if (blocked) throw new ChatError("Messaging is blocked.");
+	const accepted = new Map<string, boolean>();
+	for (const id of added) accepted.set(id, id === adderId || (await mayMessage(adderId, id)));
+	return accepted;
+}
+
+function leavesOnly(actions: any[] | undefined, userId: string) {
+	for (const action of actions ?? []) {
+		const detail = thrift.decode(thrift.fromBase64(action.encoded_message_event_detail));
+		if (detail[3]) continue;
+		const change = thrift.fields(thrift.fields(detail[4])?.[1]);
+		const removed = change && Object.keys(change).length === 1 ? thrift.fields(change[7])?.[1] : undefined;
+		if (removed?.t !== thrift.T.list || removed.v.length !== 1) return false;
+		const [user] = removed.v;
+		if ((thrift.text(user) ?? String(thrift.int(user) ?? "")) !== userId) return false;
+	}
+	return true;
 }
 
 async function deleteMessages(v: Viewer, vars: Vars) {
@@ -626,16 +696,17 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		const all = [...new Set([v.id, ...ids(vars.member_user_ids), ...ids(vars.admin_user_ids)])];
 		if (all.length < 2 || all.length > 100) throw new ChatError("Groups need 2–100 members.");
 		await writable(v.id, all);
+		const accepted = await groupInvites(v.id, all, []);
 		const admins = [...new Set([v.id, ...ids(vars.admin_user_ids)])];
 		const now = String(Date.now());
 		const metadata = { group_name: groupText(vars.group_title, 4000) ?? "", description: "", description_ckey_version: groupText(vars.conversation_key_version, 40) ?? "1",
-			created_at_msec: now, updated_at_msec: now, group_avatar_url: groupText(vars.avatar_url, 2048), message_ttl_msec: Number.isFinite(Number(vars.ttl_msec)) && vars.ttl_msec != null ? String(Math.max(0, Math.min(Number(vars.ttl_msec), 31_536_000_000))) : null,
+			created_at_msec: now, updated_at_msec: now, group_avatar_url: groupAvatar(vars.avatar_url), message_ttl_msec: Number.isFinite(Number(vars.ttl_msec)) && vars.ttl_msec != null ? String(Math.max(0, Math.min(Number(vars.ttl_msec), 31_536_000_000))) : null,
 			classification: { __typename: "XChatGroupClassification", group_type: vars.group_type === "Normal" || vars.group_type == null ? "Normal" : (groupText(vars.group_type, 40) ?? "Normal") },
 			group_invite_details: null, screen_capture_blocking_enabled: false, is_grok_enabled: false,
 			admin_settings: { __typename: "XChatGroupAdminSettings", add_member: true, edit_group_info: true, send_message: false, start_call: false, edit_message_ttl: true, block_screen_capture: true }, admins };
 		await sql.begin(async (tx) => {
 			await tx`update chat_conversations set metadata = ${JSON.stringify(metadata)}::text::jsonb, created = true where id = ${id}`;
-			for (const member of all) await tx`insert into chat_members (conversation_id, user_id) values (${id}, ${member}::bigint)`;
+			for (const member of all) await tx`insert into chat_members (conversation_id, user_id, accepted) values (${id}, ${member}::bigint, ${accepted.get(member) ?? false})`;
 		});
 		const seqs = await actionEvents(v, id, vars.action_signatures, [3, 4]);
 		let keySeq = seqs[0] ?? null;
@@ -649,9 +720,11 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		validateActions(vars.action_signatures, [3, 4]);
 		const id = String(vars.conversation_id ?? "");
 		const group = await groupAdmin(v, id);
+		if (!(await restrictedCanMessage(v.id, id))) throw new ChatError("Your account can't send this message.", 326);
 		const metadata = { ...group.metadata, updated_at_msec: String(Date.now()) };
-		for (const [input, output, max] of [["group_name", "group_name", 4000], ["group_description", "description", 8000], ["avatar_url", "group_avatar_url", 2048]] as const)
+		for (const [input, output, max] of [["group_name", "group_name", 4000], ["group_description", "description", 8000]] as const)
 			if (vars[input] != null) metadata[output] = groupText(vars[input], max);
+		if (vars.avatar_url != null) metadata.group_avatar_url = groupAvatar(vars.avatar_url);
 		metadata.description_ckey_version = groupText(vars.conversation_key_version, 40);
 		await sql`update chat_conversations set metadata = ${JSON.stringify(metadata)}::text::jsonb where id = ${id}`;
 		const seqs = await actionEvents(v, id, vars.action_signatures, [3, 4]);
@@ -666,7 +739,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		return { data: { xchat_delete_conversation: { __typename: "DeleteConversationResponse", error_code: null } } };
 	},
 	MuteConversationMutation: async (v, vars) => {
-		for (const id of vars.conversationIds ?? []) { await membership(v.id, String(id)); await sql`update chat_members set muted = true where conversation_id = ${String(id)} and user_id = ${v.id}::bigint`; }
+		for (const id of conversationIds(vars.conversationIds)) { await membership(v.id, id); await sql`update chat_members set muted = true where conversation_id = ${String(id)} and user_id = ${v.id}::bigint`; }
 		return { data: { xchat_mute_conversation: { __typename: "MuteXChatConversationResponse", error_code: null } } };
 	},
 	ArchiveConversationMutation: async (v, vars) => {
@@ -675,7 +748,7 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		return { data: { xchat_archive_conversation: { __typename: "ArchiveXChatConversationResponse", error_code: null } } };
 	},
 	UnmuteConversationMutation: async (v, vars) => {
-		for (const id of vars.conversationIds ?? []) { await membership(v.id, String(id)); await sql`update chat_members set muted = false where conversation_id = ${String(id)} and user_id = ${v.id}::bigint`; }
+		for (const id of conversationIds(vars.conversationIds)) { await membership(v.id, id); await sql`update chat_members set muted = false where conversation_id = ${String(id)} and user_id = ${v.id}::bigint`; }
 		return { data: { xchat_unmute_conversation: { __typename: "MuteXChatConversationResponse", error_code: null } } };
 	},
 	UnarchiveConversationMutation: async (v, vars) => {
@@ -687,11 +760,19 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		validateActions(vars.action_signatures, [3, 4]);
 		const id = String(vars.conversation_id ?? "");
 		await groupAdmin(v, id);
-		const added = ids(vars.user_ids);
-		const all = [...new Set([...await members(id), ...added])];
-		if (all.length > 100) throw new ChatError("Group is full.");
+		const current = await members(id);
+		const added = ids(vars.user_ids).filter((user) => !current.includes(user));
+		if (new Set([...current, ...added]).size > 100) throw new ChatError("Group is full.");
 		await writable(v.id, [...new Set([v.id, ...added])]);
-		for (const member of added) await sql`insert into chat_members (conversation_id, user_id) values (${id}, ${member}::bigint) on conflict do nothing`;
+		const accepted = added.length ? await groupInvites(v.id, added, current) : new Map<string, boolean>();
+		const all = await sql.begin(async (tx) => {
+			await holdLock(tx, `chat-group:${id}`);
+			const now = await tx`select user_id::text as id from chat_members where conversation_id = ${id}`;
+			const all = [...new Set([...now.map((r: { id: string }) => r.id), ...added])];
+			if (all.length > 100) throw new ChatError("Group is full.");
+			for (const member of added) await tx`insert into chat_members (conversation_id, user_id, accepted) values (${id}, ${member}::bigint, ${accepted.get(member) ?? false}) on conflict do nothing`;
+			return all;
+		});
 		const seqs = await actionEvents(v, id, vars.action_signatures, [3, 4]);
 		return { data: { xchat_add_group_members: { __typename: "AddGroupMembersResponse", error_code: null,
 			current_member_ids_results: all.map((user) => ({ __typename: "UserResults", id: user, rest_id: user })), conversation_key_change_sequence_id: seqs[0] ?? null } } };
@@ -702,8 +783,9 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 		const removed = ids(vars.user_ids);
 		const self = removed.length === 1 && removed[0] === v.id;
 		const all = await authorized(v.id, id);
-		if (!self) await groupAdmin(v, id);
-		const seqs = await actionEvents(v, id, vars.action_signatures, [3, 4, 14]);
+		const admin = self ? await groupAdmin(v, id).then(() => true, () => false) : !!(await groupAdmin(v, id));
+		if (!admin && !leavesOnly(vars.action_signatures, v.id)) throw new ChatError("Group admin required.");
+		const seqs = await actionEvents(v, id, vars.action_signatures, admin ? [3, 4, 14] : [3, 4]);
 		for (const member of removed) await sql`delete from chat_members where conversation_id = ${id} and user_id = ${member}::bigint`;
 		const [group] = await sql`select creator_id::text, metadata from chat_conversations where id = ${id}`;
 		if (group) {
@@ -753,15 +835,19 @@ export const chatHandlers: Record<string, (viewer: Viewer, vars: Vars) => Promis
 	AddXChatPublicKeyMutation: async (v, vars) => {
 		const k = vars.public_key ?? {};
 		const long = [k.public_key, k.signing_public_key, k.identity_public_key_signature, k.registration_method].some((x) => x != null && (typeof x !== "string" || x.length > 4096));
-		const [keys] = await sql`select count(*)::int as n from chat_keys where user_id = ${v.id}::bigint`;
-		if (long || keys.n >= 200 || typeof k.public_key !== "string" || typeof k.signing_public_key !== "string")
-			return { data: { user_add_public_key: { __typename: "AddPublicKeyResponse", error_code: "InvalidPublicKey", version: null, token_map: null } } };
-		const [last] = await sql`select max(version)::text as v from chat_keys where user_id = ${v.id}::bigint`;
-		const version = vars.generate_version || !/^\d+$/.test(String(vars.version ?? "")) ? String(BigInt(last?.v ?? "0") + 1n) : String(vars.version);
-		await sql`insert into chat_keys (user_id, version, public_key, signing_public_key, identity_public_key_signature, registration_method)
-			values (${v.id}::bigint, ${version}::bigint, ${k.public_key}, ${k.signing_public_key}, ${k.identity_public_key_signature ?? ""}, ${k.registration_method ?? "CustomPin"})
-			on conflict (user_id, version) do update set public_key = excluded.public_key, signing_public_key = excluded.signing_public_key,
-				identity_public_key_signature = excluded.identity_public_key_signature, registration_method = excluded.registration_method`;
+		const version = await sql.begin(async (tx) => {
+			await holdLock(tx, `chat-keys:${v.id}`);
+			const [keys] = await tx`select count(*)::int as n from chat_keys where user_id = ${v.id}::bigint`;
+			if (long || keys.n >= 200 || typeof k.public_key !== "string" || typeof k.signing_public_key !== "string") return null;
+			const [last] = await tx`select max(version)::text as v from chat_keys where user_id = ${v.id}::bigint`;
+			const version = vars.generate_version || !/^\d+$/.test(String(vars.version ?? "")) ? String(BigInt(last?.v ?? "0") + 1n) : String(vars.version);
+			await tx`insert into chat_keys (user_id, version, public_key, signing_public_key, identity_public_key_signature, registration_method)
+				values (${v.id}::bigint, ${version}::bigint, ${k.public_key}, ${k.signing_public_key}, ${k.identity_public_key_signature ?? ""}, ${k.registration_method ?? "CustomPin"})
+				on conflict (user_id, version) do update set public_key = excluded.public_key, signing_public_key = excluded.signing_public_key,
+					identity_public_key_signature = excluded.identity_public_key_signature, registration_method = excluded.registration_method`;
+			return version;
+		});
+		if (!version) return { data: { user_add_public_key: { __typename: "AddPublicKeyResponse", error_code: "InvalidPublicKey", version: null, token_map: null } } };
 		return { data: { user_add_public_key: { __typename: "AddPublicKeyResponse", error_code: null, version, token_map: tokenMap(v.id) } } };
 	},
 	UpdateXChatUserRealmStateMutation: () => ({ data: { xchat_update_user_key_version_realm_state: { __typename: "UpdateRealmStateResponse", error_code: null } } }),

@@ -1,9 +1,10 @@
 // Two-factor sign-in with an authenticator app. Set-up lives on /account/2fa
 // (the settings page links to it); the code is asked for in the sign-in dialog.
 import { createHash, randomInt } from "node:crypto";
-import { accountPage, esc } from "./account-page";
+import { accountPage, esc, withCsrf } from "./account-page";
 import { sql } from "./db";
 import { hit, passwordTry } from "./ratelimit";
+import { requestIp } from "./login-history";
 import { settings } from "./settings";
 import { matchingStep, newSecret, otpauthUrl } from "./totp";
 import { startSession, type Session, type Viewer } from "./auth";
@@ -101,7 +102,7 @@ export async function answerChallenge(token: string, code: string): Promise<{ us
 	});
 }
 
-const page = (req: Request, viewer: Viewer, body: string) => accountPage({ req, viewer, title: "Two-factor authentication", body });
+const page = (req: Request, viewer: Viewer, body: string) => accountPage({ req, viewer, title: "Two-factor authentication", body: withCsrf(body, viewer) });
 
 const status = (req: Request, viewer: Viewer, enabled: boolean, error = "") =>
 	page(
@@ -132,6 +133,8 @@ export async function twoFactorRoute(req: Request, url: URL, viewer: Viewer): Pr
 	const form = req.method === "POST" ? await req.formData().catch(() => undefined) : undefined;
 	const field = (k: string) => String(form?.get(k) ?? "");
 	const sub = url.pathname.slice("/account/2fa".length);
+	if (req.method === "POST" && field("csrf") !== viewer.csrf) return status(req, viewer, u.totp_enabled, "That form is out of date. Try again.");
+	if (req.method === "POST" && viewer.impersonator) return status(req, viewer, u.totp_enabled, "Not while signed in as someone else.");
 
 	if (req.method === "POST" && sub === "/start" && !u.totp_enabled) {
 		const secret = newSecret();
@@ -141,16 +144,26 @@ export async function twoFactorRoute(req: Request, url: URL, viewer: Viewer): Pr
 	if (req.method === "POST" && sub === "/confirm" && !u.totp_enabled && u.totp_pending) {
 		// the password too: a session someone took mustn't lock the owner out
 		// behind an authenticator only the taker has
-		const refund = passwordTry(viewer.screen_name.toLowerCase());
+		const refund = passwordTry(viewer.screen_name.toLowerCase(), requestIp(req));
 		if (!refund) return setup(req, u.totp_pending, viewer, "Too many tries for this account. Wait 15 minutes.");
 		if (!(await Bun.password.verify(field("password"), u.password_hash).catch(() => false))) return setup(req, u.totp_pending, viewer, "That password isn't right.");
 		refund();
 		const step = matchingStep(u.totp_pending, field("code"));
 		if (step === undefined) return setup(req, u.totp_pending, viewer, "That code isn't right. Try the next one your app shows.");
 		const backups = Array.from({ length: 8 }, backupCode);
-		// the code that turned it on is spent too
-		await sql`update users set totp_enabled = true, totp_secret = totp_pending, totp_pending = null, totp_last_step = ${step},
-			totp_backup = ${JSON.stringify(backups.map((b) => sha(b.replace("-", ""))))}::text::jsonb where id = ${viewer.id}::bigint`;
+		const enabled = await sql.begin(async (tx) => {
+			const [current] = await tx`select id from users where id = ${viewer.id}::bigint and password_hash = ${u.password_hash}
+				and totp_pending = ${u.totp_pending} and not totp_enabled for update`;
+			if (!current) return false;
+			const [session] = await tx`select token from sessions where token = ${viewer.token} and user_id = ${viewer.id}::bigint
+				and (expires_at is null or expires_at > clock_timestamp())`;
+			if (!session) return false;
+			// the code that turned it on is spent too
+			await tx`update users set totp_enabled = true, totp_secret = totp_pending, totp_pending = null, totp_last_step = ${step},
+				totp_backup = ${JSON.stringify(backups.map((b) => sha(b.replace("-", ""))))}::text::jsonb where id = ${viewer.id}::bigint`;
+			return true;
+		});
+		if (!enabled) return setup(req, u.totp_pending, viewer, "Sign in again to turn on two-factor.");
 		return page(
 			req,
 			viewer,
@@ -159,10 +172,11 @@ export async function twoFactorRoute(req: Request, url: URL, viewer: Viewer): Pr
 		);
 	}
 	if (req.method === "POST" && sub === "/disable" && u.totp_enabled) {
-		const refund = passwordTry(viewer.screen_name.toLowerCase());
+		const refund = passwordTry(viewer.screen_name.toLowerCase(), requestIp(req));
 		if (!refund) return status(req, viewer, true, "Too many tries for this account. Wait 15 minutes.");
 		const ok = await Bun.password.verify(field("password"), u.password_hash).catch(() => false);
 		if (ok) refund();
+		if (ok && !hit("code", viewer.id).ok) return status(req, viewer, true, "Too many codes tried for this account. Wait an hour.");
 		if (!ok || !(await codeAccepted(viewer.id, field("code")))) return status(req, viewer, true, "The password or the code isn't right.");
 		await sql`update users set totp_enabled = false, totp_secret = null, totp_pending = null, totp_last_step = null, totp_backup = '[]'::jsonb where id = ${viewer.id}::bigint`;
 		return status(req, viewer, false);

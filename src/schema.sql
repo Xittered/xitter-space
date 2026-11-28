@@ -130,7 +130,7 @@ create table if not exists data_exports (
 	body jsonb not null,
 	created_at timestamptz not null default now()
 );
-create unique index if not exists users_email_idx on users (lower(email));
+drop index if exists users_email_idx;
 alter table users add column if not exists status_restore text;
 alter table posts add column if not exists hidden boolean not null default false;
 alter table posts add column if not exists sensitive boolean not null default false;
@@ -801,6 +801,7 @@ create table if not exists repost_mutes (
 -- for "About this account": the app and country an account signed up from
 alter table users add column if not exists signup_source text;
 alter table users add column if not exists signup_country text;
+alter table users add column if not exists country_changed_at timestamptz;
 -- staff's own text for "Account based in", shown as typed instead of the detected region
 alter table users add column if not exists based_in_override text;
 
@@ -903,6 +904,7 @@ alter table users add column if not exists translator text check (translator in 
 
 -- email-address.ts: whether the address was proven (a sign-up code or a confirmation link)
 alter table users add column if not exists email_verified boolean not null default false;
+create unique index if not exists users_verified_email_idx on users (lower(email)) where email_verified;
 create table if not exists email_confirmations (
 	token_hash text primary key,
 	user_id bigint not null references users (id) on delete cascade,
@@ -916,6 +918,8 @@ alter table signup_sessions add column if not exists pending jsonb;
 alter table signup_sessions add column if not exists email_code_hash text;
 alter table signup_sessions add column if not exists email_code_at timestamptz;
 alter table signup_sessions add column if not exists email_attempts integer not null default 0;
+alter table signup_sessions add column if not exists email_sends integer not null default 0;
+alter table signup_sessions add column if not exists invite_attempts integer not null default 0;
 
 -- errors.ts: server and browser errors for Admin > Errors, one row per distinct error;
 -- a resolved error that happens again opens again
@@ -1494,6 +1498,10 @@ do $$ begin
 		delete from federated_objects f where kind = 'post' and not exists (select 1 from posts where id = f.local_id);
 		delete from federated_objects f where kind = 'media' and not exists (select 1 from media where id = f.local_id);
 		insert into schema_steps (name) values ('federated_objects_prune');
+	end if;
+	if not exists (select 1 from schema_steps where name = 'federated_users_prune_2') then
+		delete from federated_objects f where kind = 'user' and not exists (select 1 from users where id = f.local_id);
+		insert into schema_steps (name) values ('federated_users_prune_2');
 	end if;
 end $$;
 

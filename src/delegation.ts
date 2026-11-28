@@ -11,10 +11,11 @@
 import { type Viewer, viewerById } from "./auth";
 import { isBlockedEitherWay } from "./blocks";
 import { chatHandlers } from "./chat";
-import { sql } from "./db";
+import { holdLock, sql } from "./db";
 import { newId } from "./ids";
 import { userResult } from "./model";
 import { PostError } from "./posts";
+import { isQuery } from "./ratelimit";
 import { toUser, userCols } from "./users";
 
 type Vars = Record<string, any>;
@@ -53,10 +54,12 @@ export async function actingViewer(member: Viewer, ownerId: string): Promise<Vie
 // settings or delegation, and its messages (end-to-end keys are the owner's).
 const DELEGATE_DENIED_OPS = /Grok|XChat|DirectMessage|DmInbox|SendMessage|ConversationEvent|Preference|_settings_|Settings?Mutation|Password|Email|Phone|TwoFactor|Session|Deactivat|ScreenName|UserAccountLabel|AccountParody|Delegat/;
 const DELEGATE_DENIED_REST = /^\/(1\.1|2)\/(dm|direct_messages)\/|^\/1\.1\/account\/(?!settings\.json$|verify_credentials)|^\/1\.1\/strato\/column\/.*\/clients\//;
-const DELEGATE_PRIVATE_REST = /^\/(i\/)?account\/|^\/1\.1\/contacts\/|^\/2\/grok\/|^\/1\.1\/notifications\/settings\/|^\/1\.1\/users\/email_phone_info|^\/1\.1\/account\/(personalization|user_twitter_data)|^\/xitter\/(export|moderation|money)(\/|$)/;
+const DELEGATE_PRIVATE_REST = /^\/(i\/)?account\/|^\/1\.1\/contacts\/|^\/2\/grok\/|^\/1\.1\/notifications\/settings\/|^\/1\.1\/users\/email_phone_info|^\/1\.1\/account\/(personalization|user_twitter_data)|^\/xitter\/(export|moderation|money)(\/|$)|^\/1\.1\/mutes\/|^\/1\.1\/blocks\/(list|ids)|^\/2\/guide\/(get|set)_explore_settings|^\/1\.1\/onboarding\//;
+const DELEGATE_WRITE_REST = /^\/(i|1\.1)\/media\/|^\/v2\/cards\/(create|preview)\.json$|\/capi\/passthrough\/1$|^\/1\.1\/friendships\/(create|destroy|update)(\.json)?$|^\/1\.1\/blocks\/(create|destroy)\.json$|^\/1\.1\/users\/lookup\.json$|^\/2\/timeline\/home(_latest)?\.json$|^\/2\/notifications\/\w+\/last_seen_cursor(\.json)?$|^\/1\.1\/report\/flow\.json$|\/translation\/service\/|\/jot\/|^\/xitter\/client_error$|^\/1\.1\/live_pipeline\//;
+const DELEGATE_WRITE_OPS = /^(Create|Delete)(Tweet|NoteTweet|Retweet|Highlight)$|^(Create|Edit|Delete)(DraftTweet|ScheduledTweet)$|^DeleteDraftTweets$|^(Favorite|Unfavorite|Pin|Unpin|Moderate|Unmoderate)Tweet$|^(Pin|Unpin)Reply$|^ConversationControl(Change|Delete)$|^ArticleEntity\w+$|^(Create|Update|Delete)List$|^List(AddMember|RemoveMember|Subscribe|Unsubscribe)$|^(Edit|Delete)ListBanner$|^(Mute|Unmute)List$|^(Join|Leave|RequestToJoin|Create)Community$|^Community\w+$|^DeleteCommunityMutation$|^actions_(approve|deny)MemberRequest_Mutation$|^communityPeopleActionMenu_roleUpdate_Mutation$|^edit_membershipSettings_Mutation$|^Birdwatch(Create|Delete)\w+$|^Topic(Follow|Unfollow)$|^RemoveFollower$|^PutClientEducationFlag$|^usePremiumPaywallOnLoadMutation$|^use(AddMemberModal|MemberMenu|ChangeMemberRoleModal)Mutation_\w+_Mutation$/;
 // reads whose names the refused list would catch
 const DELEGATE_READS = new Set(["UserByScreenName"]);
-const DELEGATE_PRIVATE_READS = /Grok|XChat|DirectMessage|DmInbox|Session|Email|Phone|TwoFactor|Password|LoginHistory/;
+const DELEGATE_PRIVATE_READS = /Grok|XChat|DirectMessage|DmInbox|Session|Email|Phone|TwoFactor|Password|LoginHistory|Bookmark|MutedAccounts|BlockedAccounts/;
 // Post analytics are for Admins (as the client's role screen says).
 const ANALYTICS_OPS = /^(accountOverview|activeFollowersTile|useFetchAnalytics|contentPage|postDetailsProvider|overviewData)\w*Query$/;
 // The chat app's operations go by many names (GetPublicKeysQuery hands out the
@@ -70,14 +73,14 @@ export function delegateMay(role: Role, method: string, path: string, operation:
 	// GET (ratelimit.ts isMutation), so a refused name stays refused there too
 	// unless it is plainly a read.
 	if (operation && method === "GET") return !DELEGATE_PRIVATE_READS.test(operation) && (/Query$/.test(operation) || DELEGATE_READS.has(operation) || !DELEGATE_DENIED_OPS.test(operation));
-	if (operation) return !DELEGATE_DENIED_OPS.test(operation);
+	if (operation) return !DELEGATE_DENIED_OPS.test(operation) && (DELEGATE_WRITE_OPS.test(operation) || (isQuery(operation) && !DELEGATE_PRIVATE_READS.test(operation)));
 	// the account's look is its own to change
 	if (path.startsWith("/xitter/theme")) return method === "GET";
 	if (DELEGATE_PRIVATE_REST.test(path)) return false;
 	if (DELEGATE_DENIED_REST.test(path)) return method === "GET" && !/\/(dm|direct_messages)\//.test(path);
 	// reading settings is fine; changing them isn't
 	if (path === "/1.1/account/settings.json") return method === "GET";
-	return true;
+	return method === "GET" || DELEGATE_WRITE_REST.test(path);
 }
 
 // ---- shapes
@@ -171,11 +174,14 @@ async function invite(v: Viewer, ownerId: string, memberId: string, role: Role) 
 	// the invitee's own setting (Settings > Delegate)
 	if (m.delegation_invites === "Nobody" || (m.delegation_invites === "OnlyFollowing" && !m.follows_owner))
 		throw new PostError("This account doesn't accept delegation invites from you.", 214);
-	const [{ n }] = await sql`select count(*)::int as n from delegation_members where owner_id = ${ownerId}::bigint`;
-	if (n >= MAX_MEMBERS) throw new PostError(`An account can have up to ${MAX_MEMBERS} delegates.`, 214);
-	await sql`insert into delegation_members (id, owner_id, member_id, role, invited_by)
-		values (${newId()}::bigint, ${ownerId}::bigint, ${memberId}::bigint, ${role}, ${self(v)}::bigint)
-		on conflict (owner_id, member_id) do update set role = excluded.role`;
+	await sql.begin(async (tx) => {
+		await holdLock(tx, `delegates:${ownerId}`);
+		const [{ n }] = await tx`select count(*)::int as n from delegation_members where owner_id = ${ownerId}::bigint`;
+		if (n >= MAX_MEMBERS) throw new PostError(`An account can have up to ${MAX_MEMBERS} delegates.`, 214);
+		await tx`insert into delegation_members (id, owner_id, member_id, role, invited_by)
+			values (${newId()}::bigint, ${ownerId}::bigint, ${memberId}::bigint, ${role}, ${self(v)}::bigint)
+			on conflict (owner_id, member_id) do update set role = excluded.role`;
+	});
 }
 
 // ---- operations

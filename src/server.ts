@@ -1,4 +1,4 @@
-import { MULTI_COOKIE, SESSION_COOKIE, type Viewer, clearedCookies, expireSessions, getViewer, parseCookies, csrfCookie, suspendedViewer } from "./auth";
+import { LOGIN_CSRF_COOKIE, MULTI_COOKIE, SESSION_COOKIE, type Viewer, clearedCookies, expireSessions, getViewer, parseCookies, csrfCookie, suspendedViewer } from "./auth";
 import { multiViewer } from "./accounts";
 import { gbeePage } from "./gbee-page";
 import { CLIENT_DIR, clientDir, clientPathAllowed, getClientFile, getClientFilePath, hasClientFile, withClientDir } from "./client-cache";
@@ -60,7 +60,7 @@ import { legacyAnalyticsPage } from "./legacy-analytics";
 import { circleRoute } from "./circles";
 import { cardImage } from "./explore-cards";
 import { rememberIp, requestIp } from "./login-history";
-import { hit, isMutation, limitApi, limitedResponse } from "./ratelimit";
+import { addressKey, hit, isMutation, limitApi, limitedResponse } from "./ratelimit";
 import { actingViewer, delegateMay } from "./delegation";
 import { automationRoute } from "./automation";
 import { instancesRoute } from "./federation-settings";
@@ -255,6 +255,31 @@ export const guestViewer = (): Viewer => ({ id: GUEST_ID, screen_name: "", name:
 const guestPage = (p: string) => p === "/home" || !RESERVED_PATHS.has(p.split("/")[1]?.toLowerCase() ?? "") && /^\/[A-Za-z0-9_]{1,15}(?:\/(?:status\/\d{1,19}(?:\/(?:photo|video)\/\d)?|with_replies|media|highlights))?\/?$/.test(p);
 const RESERVED_PATHS = new Set(["home", "explore", "notifications", "messages", "settings", "i", "compose", "search", "login", "logout", "signup", "account", "admin", "abs", "api", "media", "public", "jobs", "tos", "privacy"]);
 
+const SIGN_IN_POST = /^\/(?:login|sessions(?:\/code)?|account\/passkey(?:\/.*)?|(?:i\/jfapi\/)?onboarding\/web(?:\/.*)?)$/;
+
+async function formTokenOk(req: Request): Promise<boolean> {
+	if (!/^(?:application\/x-www-form-urlencoded|multipart\/form-data)/i.test(req.headers.get("content-type") ?? "")) return false;
+	const sent = String((await req.clone().formData().catch(() => undefined))?.get("csrf") ?? "");
+	if (!sent) return false;
+	if (sent === parseCookies(req)[LOGIN_CSRF_COOKIE]) return true;
+	const own = (await getViewer(req))?.csrf ?? (await suspendedViewer(req))?.csrf;
+	return !!own && sent === own;
+}
+
+async function crossSiteWrite(req: Request, url: URL): Promise<boolean> {
+	if (req.method === "GET" || req.method === "HEAD") return false;
+	const signIn = SIGN_IN_POST.test(url.pathname);
+	if (!signIn && !req.headers.has("cookie")) return false;
+	const site = req.headers.get("sec-fetch-site");
+	if (site) return site !== "same-origin" && site !== "none";
+	const origin = req.headers.get("origin");
+	if (origin) return origin !== PUBLIC_ORIGIN && origin !== url.origin;
+	if (!/^Mozilla\//.test(req.headers.get("user-agent") ?? "")) return false;
+	if (req.headers.get("x-csrf-token") || (await formTokenOk(req))) return false;
+	if (signIn) return true;
+	return !!((await getViewer(req)) ?? (await suspendedViewer(req)));
+}
+
 async function guestApi(url: URL): Promise<Response> {
 	if (url.pathname.endsWith("/1.1/hashflags.json")) return Response.json(await hashflagsJson());
 	const parts = url.pathname.split("/").filter(Boolean);
@@ -298,6 +323,8 @@ async function serveApi(req: Request, url: URL, viewer: Viewer | undefined): Pro
 		const acting = await actingViewer(viewer, actAs);
 		if (!acting) return apiError(403, 200, "You can't act as this account.");
 		if (!delegateMay(acting.actor!.role, req.method, path, operation)) return apiError(403, 200, "Delegates can't do this for the account.");
+		if (viewer.status === "restricted" && restrictedRefuses(req.method, path, operation, url))
+			return apiError(403, 326, "Your account can't interact right now.");
 		viewer = acting;
 	}
 	const multiUser = req.headers.get("x-web-auth-multi-user-id");
@@ -479,12 +506,7 @@ async function route(req: Request): Promise<Response | undefined> {
 		return encoding ? new Response(await compressedFile(body, encoding), { headers: { ...headers, "content-encoding": encoding } }) : new Response(new Uint8Array(body), { headers });
 	}
 	if (p.startsWith("/i/xitter/")) return new Response("not found", { status: 404 });
-	if (req.method !== "GET" && req.method !== "HEAD" && req.headers.has("cookie")) {
-		const site = req.headers.get("sec-fetch-site");
-		const origin = req.headers.get("origin");
-		if (site ? site !== "same-origin" && site !== "none" : origin && origin !== PUBLIC_ORIGIN && origin !== url.origin)
-			return new Response("This request came from another site.", { status: 403 });
-	}
+	if (await crossSiteWrite(req, url)) return new Response("This request came from another site.", { status: 403 });
 	if (p.startsWith("/abs/")) return serveClient(req, p);
 	if (p === "/.well-known/xitter" || p.startsWith("/federation/v1/")) {
 		const answer = await federationRoute(req, url);
@@ -499,7 +521,7 @@ async function route(req: Request): Promise<Response | undefined> {
 		const [account] = await sql`select 1 from users u where u.id = ${userId}::bigint and u.status <> 'suspended'
 			and (${sid ?? null}::text is null or exists (select 1 from sessions s where s.user_id = u.id and (encode(sha256(convert_to(s.token, 'UTF8')), 'hex') = ${sid ?? null} or s.token = ${sid ?? null})))`;
 		if (!account) return new Response("suspended", { status: 403 });
-		return server.upgrade(req, { data: { userId } }) ? undefined : new Response("expected a websocket", { status: 400 });
+		return server.upgrade(req, { data: { userId, sid } }) ? undefined : new Response("expected a websocket", { status: 400 });
 	}
 	// the chat app's way to the key backup realm: signed-in accounts only, and
 	// not faster than their messages
@@ -529,17 +551,17 @@ async function route(req: Request): Promise<Response | undefined> {
 	if (p === "/api" || p === "/api/") return apiDocsPage(req);
 	if (req.method === "OPTIONS") return new Response(null, { status: 204 });
 	if (p === "/login" && req.method === "POST") {
-		const h = hit("auth", requestIp(req) ?? "unknown");
+		const h = hit("auth", addressKey(requestIp(req)));
 		if (!h.ok) return limitedResponse(h);
 		return handleLogin(req);
 	}
 	if (p === "/sessions" && req.method === "POST" && loadBuild()?.build.stateBase) {
-		const h = hit("auth", requestIp(req) ?? "unknown");
+		const h = hit("auth", addressKey(requestIp(req)));
 		if (!h.ok) return limitedResponse(h);
 		return handleOldSessions(req);
 	}
 	if (p === "/sessions/code" && (req.method === "GET" || req.method === "POST") && loadBuild()?.build.stateBase) {
-		const h = req.method === "POST" ? hit("auth", requestIp(req) ?? "unknown") : undefined;
+		const h = req.method === "POST" ? hit("auth", addressKey(requestIp(req))) : undefined;
 		if (h && !h.ok) return limitedResponse(h);
 		return handleOldCode(req);
 	}
@@ -553,7 +575,7 @@ async function route(req: Request): Promise<Response | undefined> {
 		// on every keystroke (is this name free?), which would use them up while
 		// one person types
 		if (req.method === "POST") {
-			const ip = requestIp(req) ?? "unknown";
+			const ip = addressKey(requestIp(req));
 			const step = p.replace(/^\/i\/jfapi/, "");
 			const h = step.startsWith("/onboarding/web/actions/") ? hit("auth", ip) : hit("endpoint", `${ip}:${step.replace(/\d+/g, "#")}`);
 			if (!h.ok) return limitedResponse(h);
@@ -597,7 +619,7 @@ async function route(req: Request): Promise<Response | undefined> {
 	setRequestLanguage(viewer?.language ?? undefined);
 	if (!p.startsWith("/api/")) setHidden({ parody: !!viewer?.hide_parody_labels, checks: !!viewer?.hide_checkmarks });
 	if (req.method === "GET" && url.searchParams.has("client") && !API_PREFIX.test(p)) {
-		const switched = await switchByQuery(url, viewer ?? undefined);
+		const switched = await switchByQuery(req, url, viewer ?? undefined);
 		if (switched) return switched;
 	}
 	const steam = /^\/public\/steam\/(\d+)\/([^/]+)$/.exec(p);
@@ -698,7 +720,7 @@ async function route(req: Request): Promise<Response | undefined> {
 		if (blocked) return staffBlockedPage(blocked);
 		return new Response(await adminPage(), { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 	}
-	if (p === "/_debug/unknown" && viewer?.role === "admin") return Response.json(Object.fromEntries([...unknown].sort((a, b) => b[1] - a[1])));
+	if (p === "/_debug/unknown" && viewer?.role === "admin" && !(await staffGate(req, viewer))) return Response.json(Object.fromEntries([...unknown].sort((a, b) => b[1] - a[1])));
 	if (API_PREFIX.test(p) || req.method !== "GET") {
 		// the event stream must outlive the default idle timeout
 		if (p.endsWith("/live_pipeline/events")) server.timeout(req, 0);

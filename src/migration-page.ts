@@ -3,13 +3,14 @@
 // the old one with it, shows what doesn't line up, and runs the import
 // (migration-import.ts), whose progress and report show here too.
 
-import { accountPage, esc } from "./account-page";
+import { accountPage, esc, scriptNonce } from "./account-page";
 import type { Viewer } from "./auth";
 import { sql } from "./db";
 import { INSTANCE_ID } from "./federation";
 import { type Check, type Finding, MigrationError, check, jobs, start } from "./migration-import";
 import { codeState, createCode, revokeCodes, versionInfo } from "./migration";
 import { hit, passwordTry } from "./ratelimit";
+import { requestIp } from "./login-history";
 import { feature } from "./settings";
 
 const CSS = `
@@ -111,7 +112,7 @@ ${on ? `<h2>Move here from another instance</h2>
 	<p class="dim">Nothing is copied yet: the next step shows whether the two instances line up.</p>
 </form>` : ""}
 ${recent.length ? `<h2>Imports</h2>${recent.map((j: any, i: number) => jobCard(j, i === 0)).join("")}` : ""}
-${running ? `<script>setTimeout(function(){location.reload()},2000)</script>` : ""}
+${running ? `<script nonce="${scriptNonce(req)}">setTimeout(function(){location.reload()},2000)</script>` : ""}
 
 ${on || codeCard ? `<h2>Move to another instance</h2>` : ""}
 ${on ? `<p class="dim">A migration code lets the new instance copy this account's data. When the move is done there, this account can leave a note on its profile pointing to the new one, and be deactivated. Followers can't be moved for them, and encrypted chats stay here.</p>` : ""}
@@ -185,13 +186,15 @@ export async function migrateRoute(req: Request, viewer: Viewer): Promise<Respon
 	if (!feature("migration") && action !== "revoke") return home(req, viewer, { error: "Moving accounts is turned off on this instance.", status: 403 });
 	if (action === "code") {
 		const account = viewer.screen_name.toLowerCase();
-		const refund = passwordTry(account);
+		const refund = passwordTry(account, requestIp(req));
 		if (!refund) return home(req, viewer, { error: "Too many tries. Wait 15 minutes.", status: 429 });
 		const [u] = await sql`select password_hash from users where id = ${viewer.id}::bigint`;
 		if (!u || !(await Bun.password.verify(field("password"), u.password_hash).catch(() => false)))
 			return home(req, viewer, { error: "That password isn't right.", status: 400 });
 		refund();
-		return home(req, viewer, { code: await createCode(viewer.id) });
+		const code = await createCode(viewer.id, viewer.token);
+		if (!code) return home(req, viewer, { error: "Sign in again to make a migration code.", status: 401 });
+		return home(req, viewer, { code });
 	}
 	if (action === "revoke") {
 		await revokeCodes(viewer.id);

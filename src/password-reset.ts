@@ -1,7 +1,8 @@
 // Forgot password: a mailed link opens a page that sets a new one. Tokens are
 // stored hashed, last an hour and work once.
 import { createHash } from "node:crypto";
-import { accountPage, esc } from "./account-page";
+import { accountPage, esc, scriptNonce } from "./account-page";
+import { closeSignedOutSockets, revokeCredentials } from "./auth";
 import { sql } from "./db";
 import { PUBLIC_ORIGIN } from "./config";
 import { mailEnabled, sendMail } from "./mail";
@@ -19,7 +20,10 @@ export async function requestReset(usernameOrEmail: string): Promise<void> {
 		// Lock before reading the recipient and issuing the token. Changing the
 		// verified email uses the same lock and invalidates previously issued links.
 		const [account] = await tx`select id::text, screen_name, email from users
-			where (lower(screen_name) = lower(${who}) or lower(email) = lower(${who}))
+			where id = (select m.id from (select id, lower(screen_name) = lower(${who}) as by_name, email_verified, count(*) over () as n from users
+					where (lower(screen_name) = lower(${who}) or lower(email) = lower(${who})) and instance is null) m
+				where m.by_name or m.email_verified or m.n = 1 order by m.by_name desc, m.email_verified desc limit 1)
+			and (lower(screen_name) = lower(${who}) or lower(email) = lower(${who}))
 			and email is not null and status <> 'suspended' and instance is null for update`;
 		if (!account) return undefined;
 		const [recent] = await tx`select 1 from password_resets where user_id = ${account.id}::bigint and created_at > now() - interval '2 minutes'`;
@@ -81,20 +85,14 @@ export async function resetRoute(req: Request, url: URL): Promise<Response> {
 		if (!claimed) return false;
 		await tx`update users set password_hash = ${passwordHash} where id = ${row.user_id}::bigint`;
 		// Older links must not be able to replace the newly chosen password either.
-		await tx`update password_resets set used = true where user_id = ${row.user_id}::bigint and not used`;
-		await tx`delete from sessions where user_id = ${row.user_id}::bigint`;
-		await tx`delete from api_tokens where user_id = ${row.user_id}::bigint`;
 		// an app approved just before would otherwise trade its code for a new token
-		await tx`delete from oauth_codes where user_id = ${row.user_id}::bigint`;
-		await tx`delete from migration_tokens where user_id = ${row.user_id}::bigint and completed_at is null`;
-		await tx`delete from login_challenges where user_id = ${row.user_id}::bigint`;
 		// passkeys stay: they live on the owner's devices, and dropping them on
 		// every forgotten password locked people out of their usual sign-in
-		await tx`delete from passkey_challenges where user_id = ${row.user_id}::bigint`;
-		await tx`update email_confirmations set used = true where user_id = ${row.user_id}::bigint and not used`;
+		await revokeCredentials(tx, String(row.user_id));
 		return true;
 	});
 	if (!changed) return page(req, `<h1>Link expired</h1><p>This reset link is invalid or has been used. <a href="/">Back to sign in</a>, then ask for a new one.</p>`, 410);
+	closeSignedOutSockets(String(row.user_id));
 	return page(req, `<h1>Password changed</h1><p>You can now <a href="/">sign in</a> with it. Every device was signed out. Your passkeys still work; remove any you don't recognise on your <a href="/account/passkeys">passkeys page</a>.</p>`);
 }
 
@@ -107,8 +105,8 @@ export async function forgotRoute(req: Request, url: URL): Promise<Response> {
 <form method="post" action="/account/forgot"><input name="who" value="${esc(value)}" placeholder="Username or email" autocomplete="username" required>
 <cap-widget data-cap-api-endpoint="/i/xitter/cap/" required></cap-widget>
 <button type="submit">Send reset link</button></form>
-<script>window.CAP_CUSTOM_HASHWX_URL="/i/xitter/cap/hashwx.wasm";window.CAP_CUSTOM_WASM_URL="/i/xitter/cap/cap_wasm_bg.wasm"</script>
-<script src="/i/xitter/cap/widget.js"></script>`,
+<script nonce="${scriptNonce(req)}">window.CAP_CUSTOM_HASHWX_URL="/i/xitter/cap/hashwx.wasm";window.CAP_CUSTOM_WASM_URL="/i/xitter/cap/cap_wasm_bg.wasm";window.CAP_SCRIPT_NONCE="${scriptNonce(req)}"</script>
+<script nonce="${scriptNonce(req)}" src="/i/xitter/cap/widget.js"></script>`,
 		);
 	if (req.method === "GET") return ask(url.searchParams.get("u") ?? "");
 	if (!capPassed(req, true)) return ask(url.searchParams.get("u") ?? "");

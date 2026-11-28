@@ -1,8 +1,8 @@
 // The rules page, and sign-in by form post for scripts. People sign in and up
 // in X's own dialog, served by onboarding.ts.
 
-import { recordSignIn } from "./login-history";
-import { login, sessionCookies } from "./auth";
+import { recordSignIn, requestIp } from "./login-history";
+import { login, loginCsrf, sessionCookies } from "./auth";
 import { loadLook, nightModeCookies } from "./themes/api";
 import { passwordStep } from "./password-sign-in";
 import { passwordTry } from "./ratelimit";
@@ -80,15 +80,16 @@ export async function handleOldSessions(req: Request): Promise<Response> {
 	const typed = f["session[username_or_email]"] ?? "";
 	// the dialog's password step: an email works too, and an account with a
 	// second factor gets its code asked for (this client has no screen of its own for it)
-	const step = await passwordStep(typed, f["session[password]"] ?? "");
+	const step = await passwordStep(typed, f["session[password]"] ?? "", requestIp(req));
 	if ("challenge" in step) return new Response(null, { status: 303, headers: { location: `/sessions/code?c=${step.challenge}` } });
 	if ("error" in step) return new Response(null, { status: 303, headers: { location: `/login/error?username_or_email=${encodeURIComponent(typed)}` } });
 	await recordSignIn(req, step.session);
 	return signedIn(step.session);
 }
 
-const codePage = (challenge: string, error = "") =>
-	html(
+const codePage = (req: Request, challenge: string, error = "") => {
+	const { csrf, cookie } = loginCsrf(req);
+	const res = html(
 		layout(
 			"Enter your code",
 			`<form method="post" action="/sessions/code">
@@ -97,6 +98,7 @@ const codePage = (challenge: string, error = "") =>
 	<p class="alt">Open your authenticator app and enter the code for ${esc(settings().instance_name)}, or use a backup code.</p>
 	${error ? `<p class="error" role="alert">${esc(error)}</p>` : ""}
 	<input type="hidden" name="c" value="${esc(challenge)}">
+	<input type="hidden" name="csrf" value="${csrf}">
 	<input name="code" inputmode="numeric" autocomplete="one-time-code" autofocus required aria-label="Code">
 	<button type="submit">Next</button>
 	<p class="alt"><a href="/login">Start again</a></p>
@@ -104,10 +106,13 @@ const codePage = (challenge: string, error = "") =>
 		),
 		error ? 400 : 200,
 	);
+	res.headers.append("set-cookie", cookie);
+	return res;
+};
 
 // the code step after /sessions, for accounts with a second factor
 export async function handleOldCode(req: Request): Promise<Response> {
-	if (req.method !== "POST") return codePage(new URL(req.url).searchParams.get("c") ?? "");
+	if (req.method !== "POST") return codePage(req, new URL(req.url).searchParams.get("c") ?? "");
 	const f = await fields(req);
 	const answered = await answerChallenge(f.c ?? "", (f.code ?? "").trim());
 	if (answered.session) {
@@ -115,13 +120,13 @@ export async function handleOldCode(req: Request): Promise<Response> {
 		return signedIn(answered.session);
 	}
 	if (answered.unknown) return new Response(null, { status: 303, headers: { location: "/login" } });
-	return codePage(f.c ?? "", answered.error ?? "That code isn't right.");
+	return codePage(req, f.c ?? "", answered.error ?? "That code isn't right.");
 }
 
 async function passwordLogin(req: Request, typed: string, password: string): Promise<Response> {
 	const username = typed.replace(/^@/, "").trim();
 	const account = username.toLowerCase();
-	const refund = username ? passwordTry(account) : () => {};
+	const refund = username ? passwordTry(account, requestIp(req)) : () => {};
 	if (!refund) return new Response("Too many tries for this account. Wait 15 minutes.", { status: 429 });
 	const session = username && password ? await login(username, password) : undefined;
 	if (!session) return new Response("Wrong username or password.", { status: 401 });

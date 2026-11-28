@@ -2,7 +2,7 @@
 // where it went, and the tools to put it right: adjusting a balance and
 // reversing a payment. Every change is in the audit log.
 
-import { AdminError, type Action, audit, idOf } from "./admin";
+import { AdminError, type Action, audit, guard, idOf } from "./admin";
 import { sql } from "./db";
 import { newId } from "./ids";
 import { MoneyError, accountFor, adjust, formatCents, networkEconomy, parseAmount, unannouncePayment } from "./money";
@@ -95,6 +95,7 @@ export const moneyActions: Record<string, Action> = {
 				feed: feed?.screen_name ?? "",
 				follow_network: b.follow_network === true,
 				peer_daily_cents: cents(String(b.peer_daily ?? "").trim() || "0", "The daily limit from one instance", 0, 10_000_000_000),
+				peer_daily_move_cents: cents(String(b.peer_move_daily ?? "").trim() || "0", "The daily limit of moved balances from one instance", 0, 10_000_000_000),
 				move_balance: b.move_balance !== false,
 				network_totals: b.network_totals === true,
 			};
@@ -326,6 +327,7 @@ export const moneyActions: Record<string, Action> = {
 				if (t.federation_status === "pending") throw new AdminError("Wait for this federated transfer to settle before reversing it.");
 				if (t.federation_status === "failed") throw new AdminError("That transfer failed and the money was already refunded.");
 				if (t.sender_instance || t.recipient_instance) throw new AdminError("Federated payments cannot be reversed from this instance.");
+				await guard(a, t.recipient_id);
 				const amount = Number(t.amount);
 				const wallets = await tx`select user_id::text, balance_cents from money_wallets where user_id in (${t.sender_id}::bigint, ${t.recipient_id}::bigint) order by user_id for update`;
 				const theirs = Number(wallets.find((w: any) => w.user_id === t.recipient_id)?.balance_cents ?? 0);

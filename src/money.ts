@@ -3,12 +3,12 @@
 // likes on their posts. A new wallet starts with its home instance's balance.
 // The pages are money-page.ts; the client's side is money-ui.ts.
 
-import { audit } from "./admin";
+import { audit, guard } from "./admin";
 import { esc } from "./account-page";
 import type { Viewer } from "./auth";
 import { blockedFor, isBlockedEitherWay, protectedFor, suspendedFor } from "./blocks";
 import { PUBLIC_ORIGIN } from "./config";
-import { sql } from "./db";
+import { holdLock, sql } from "./db";
 import { hateIn } from "./hate";
 import { newId } from "./ids";
 import { linksIn } from "./links";
@@ -167,7 +167,7 @@ export async function sendMoney(senderId: string, handle: string, amountCents: n
 			values (${id}::bigint, ${to.instance}, ${senderId}::bigint, ${to.remote_id}::bigint, ${amountCents}, ${note})`;
 		return { id, to: to.screen_name, repeated: false };
 	});
-	if (!sent.repeated) void announcePayment(sent.id);
+	if (!sent.repeated) void announcePayment(sent.id).catch((e) => console.error("Equicoins announcement:", e));
 	return sent;
 }
 
@@ -223,20 +223,25 @@ export async function requestMoney(requesterId: string, from: string, amountText
 		if (payer.id === requesterId) throw new MoneyError("You can't ask yourself for money.");
 		if (!amount) throw new MoneyError(`Say how much you're asking @${payer.screen_name} for.`);
 		if (await isBlockedEitherWay(requesterId, payer.id)) throw new MoneyError(`You can't ask @${payer.screen_name} for money.`);
-		const [{ n }] = await sql`select count(*)::int as n from money_requests where requester_id = ${requesterId}::bigint and payer_id is not null and status = 'open'`;
-		if (n >= OPEN_REQUESTS_MAX) throw new MoneyError(`You have ${n} requests waiting. Cancel some first.`);
-		const [dup] = await sql`select id::text from money_requests where requester_id = ${requesterId}::bigint and payer_id = ${payer.id}::bigint and status = 'open'
-			and amount_cents = ${amount} and note = ${note}`;
-		if (dup) return dup.id;
-	} else {
-		// one plain "Pay me" card each: asking again gives the same one
-		const [same] = await sql`select id::text from money_requests where requester_id = ${requesterId}::bigint and payer_id is null and status = 'open'
-			and amount_cents is not distinct from ${amount} and note = ${note}`;
-		if (same) return same.id;
 	}
-	const id = newId();
-	await sql`insert into money_requests (id, requester_id, payer_id, amount_cents, note) values (${id}::bigint, ${requesterId}::bigint, ${payer?.id ?? null}, ${amount}, ${note})`;
-	return id;
+	return sql.begin(async (tx) => {
+		await holdLock(tx, `money-requests:${requesterId}`);
+		if (payer) {
+			const [{ n }] = await tx`select count(*)::int as n from money_requests where requester_id = ${requesterId}::bigint and payer_id is not null and status = 'open'`;
+			if (n >= OPEN_REQUESTS_MAX) throw new MoneyError(`You have ${n} requests waiting. Cancel some first.`);
+			const [dup] = await tx`select id::text from money_requests where requester_id = ${requesterId}::bigint and payer_id = ${payer.id}::bigint and status = 'open'
+				and amount_cents = ${amount} and note = ${note}`;
+			if (dup) return dup.id as string;
+		} else {
+			// one plain "Pay me" card each: asking again gives the same one
+			const [same] = await tx`select id::text from money_requests where requester_id = ${requesterId}::bigint and payer_id is null and status = 'open'
+				and amount_cents is not distinct from ${amount} and note = ${note}`;
+			if (same) return same.id as string;
+		}
+		const id = newId();
+		await tx`insert into money_requests (id, requester_id, payer_id, amount_cents, note) values (${id}::bigint, ${requesterId}::bigint, ${payer?.id ?? null}, ${amount}, ${note})`;
+		return id;
+	});
 }
 
 // the payer declines a request of them, the requester cancels their own
@@ -253,6 +258,7 @@ export async function adjust(viewer: Viewer, handle: string, cents: number) {
 	const to = await accountFor(handle);
 	if (!to) throw new MoneyError("There's no account here with that username.");
 	if (to.instance) throw new MoneyError("Only the account's home instance can adjust its balance.");
+	await guard(viewer, to.id);
 	await ensureWallet(to.id);
 	const [w] = await sql`update money_wallets set balance_cents = greatest(balance_cents + ${cents}, 0)
 		where user_id = ${to.id}::bigint returning balance_cents`;
@@ -412,7 +418,7 @@ export async function payments(ids: string[], visibleTo?: string): Promise<Map<s
 	return new Map(
 		rows
 			.filter((r: any) => who.has(r.sender_id) && who.has(r.recipient_id))
-			.map((r: any) => [r.id, { id: r.id, amount: Number(r.amount_cents), note: r.note, at: new Date(r.created_at), sender: who.get(r.sender_id)!, recipient: who.get(r.recipient_id)!, reversed: r.reversed, status: r.federation_status, shared: r.shared }]),
+			.map((r: any) => [r.id, { id: r.id, amount: Number(r.amount_cents), note: r.shared ? r.note : "", at: new Date(r.created_at), sender: who.get(r.sender_id)!, recipient: who.get(r.recipient_id)!, reversed: r.reversed, status: r.federation_status, shared: r.shared }]),
 	);
 }
 

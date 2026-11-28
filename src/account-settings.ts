@@ -6,9 +6,10 @@ import { automodStrike, shutOut } from "./moderation";
 import { blockedNameIn, suspendForName } from "./names";
 import { isReserved, usernameProblem } from "./invites";
 import { superadminNameHere } from "./superadmins";
-import { sql } from "./db";
-import { type Viewer, clearedCookies } from "./auth";
+import { holdLock, sql } from "./db";
+import { type Viewer, clearedCookies, closeSignedOutSockets, revokeCredentials } from "./auth";
 import { passwordTry } from "./ratelimit";
+import { requestIp } from "./login-history";
 
 const error = (code: number, message: string, status = 400) => Response.json({ errors: [{ code, message }] }, { status });
 
@@ -27,8 +28,8 @@ async function body(req: Request): Promise<Record<string, string>> {
 
 // counted with signing in's tries for the account: from inside a session the
 // password could otherwise be guessed without end
-async function passwordCheck(viewer: Viewer, password: string | undefined): Promise<"ok" | "wrong" | "limited"> {
-	const refund = passwordTry(viewer.screen_name.toLowerCase());
+async function passwordCheck(req: Request, viewer: Viewer, password: string | undefined): Promise<"ok" | "wrong" | "limited"> {
+	const refund = passwordTry(viewer.screen_name.toLowerCase(), requestIp(req));
 	if (!refund) return "limited";
 	if (!password) return "wrong";
 	const [u] = await sql`select password_hash from users where id = ${viewer.id}::bigint`;
@@ -60,8 +61,15 @@ export async function changeUsername(viewer: Viewer, wanted: string): Promise<st
 		if (!viewer.role) await suspendForName(viewer.id, wanted);
 		return "That username isn't allowed here.";
 	}
-	await sql`insert into username_changes (user_id, old_name, new_name) values (${viewer.id}::bigint, ${viewer.screen_name}, ${wanted})`;
-	await sql`update users set screen_name = ${wanted} where id = ${viewer.id}::bigint`;
+	const tooOften = await sql.begin(async (tx) => {
+		await holdLock(tx, `username-changes:${viewer.id}`);
+		const [renames] = await tx`select count(*)::int as n from username_changes where user_id = ${viewer.id}::bigint and changed_at > now() - interval '1 day'`;
+		if (renames.n >= 5) return true;
+		await tx`insert into username_changes (user_id, old_name, new_name) values (${viewer.id}::bigint, ${viewer.screen_name}, ${wanted})`;
+		await tx`update users set screen_name = ${wanted} where id = ${viewer.id}::bigint`;
+		return false;
+	});
+	if (tooOften) return "You've changed your username too often today. Try again tomorrow.";
 	forgetHeld();
 	return undefined;
 }
@@ -87,7 +95,7 @@ export async function accountSettingsRoute(method: string, path: string, viewer:
 		const f = await body(req);
 		// the hash read here is the one the update below must still find
 		const [account] = await sql`select password_hash from users where id = ${viewer.id}::bigint`;
-		const checked = await passwordCheck(viewer, f.current_password);
+		const checked = await passwordCheck(req, viewer, f.current_password);
 		if (checked === "limited") return tooMany();
 		if (!account || checked !== "ok") return error(231, "Your current password is incorrect.", 403);
 		const next = f.new_password ?? f.password ?? "";
@@ -102,30 +110,24 @@ export async function accountSettingsRoute(method: string, path: string, viewer:
 			const rows = await tx`update users set password_hash = ${passwordHash}
 				where id = ${viewer.id}::bigint and password_hash = ${account.password_hash} returning id`;
 			if (!rows.length) return false;
-			await tx`update password_resets set used = true where user_id = ${viewer.id}::bigint and not used`;
 			// Other devices have to sign in again with the new password.
-			await tx`delete from sessions where user_id = ${viewer.id}::bigint and token <> ${viewer.token}`;
-			await tx`delete from api_tokens where user_id = ${viewer.id}::bigint`;
-			await tx`delete from oauth_codes where user_id = ${viewer.id}::bigint`;
-			await tx`delete from migration_tokens where user_id = ${viewer.id}::bigint and completed_at is null`;
-			await tx`delete from login_challenges where user_id = ${viewer.id}::bigint`;
-			await tx`delete from passkey_challenges where user_id = ${viewer.id}::bigint`;
-			await tx`update email_confirmations set used = true where user_id = ${viewer.id}::bigint and not used`;
+			await revokeCredentials(tx, viewer.id, viewer.token);
 			return true;
 		});
 		if (!changed) return error(231, "Your current password is incorrect.", 403);
+		closeSignedOutSockets(viewer.id);
 		return Response.json({ status: "ok" });
 	}
 
 	if (path === "/1.1/account/verify_password.json") {
-		const checked = await passwordCheck(viewer, (await body(req)).password);
+		const checked = await passwordCheck(req, viewer, (await body(req)).password);
 		if (checked === "limited") return tooMany();
 		return checked === "ok" ? Response.json({ status: "ok" }) : error(231, "Your password is incorrect.", 403);
 	}
 
 	if (path === "/1.1/account/deactivate.json") {
 		const f = await body(req);
-		const checked = await passwordCheck(viewer, f.current_password ?? f.password);
+		const checked = await passwordCheck(req, viewer, f.current_password ?? f.password);
 		if (checked === "limited") return tooMany();
 		if (checked !== "ok") return error(231, "Your password is incorrect.", 403);
 		if (viewer.role) return error(214, "Staff accounts can't be deactivated here.");
@@ -178,6 +180,7 @@ export async function revokeSessionsRoute(method: string, path: string, viewer: 
 	if (method !== "POST") return undefined;
 	if (path === "/account/sessions/revoke_all") {
 		await sql`delete from sessions where user_id = ${viewer.id}::bigint and token <> ${viewer.token}`;
+		closeSignedOutSockets(viewer.id);
 		return Response.json({ status: "ok" });
 	}
 	if (path === "/account/sessions/revoke") {
@@ -186,6 +189,7 @@ export async function revokeSessionsRoute(method: string, path: string, viewer: 
 		const rows = await sql`select token from sessions where user_id = ${viewer.id}::bigint`;
 		const hit = rows.find((r: any) => hashed(r.token) === wanted && r.token !== viewer.token);
 		if (hit) await sql`delete from sessions where token = ${hit.token}`;
+		if (hit) closeSignedOutSockets(viewer.id);
 		return Response.json({ status: "ok" });
 	}
 	return undefined;

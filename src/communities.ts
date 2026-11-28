@@ -3,7 +3,7 @@
 // fields, with `communityResults` as the key a community comes back under.
 
 import type { Viewer } from "./auth";
-import { sql } from "./db";
+import { holdLock, sql } from "./db";
 import { blockedFor } from "./blocks";
 import { isId, newId } from "./ids";
 import {
@@ -52,6 +52,8 @@ async function mustBe(viewerId: string, id: string, min: Role): Promise<void> {
 	const { role } = await roleOf(viewerId, id);
 	if (!atLeast(role, min)) throw new PostError("You don't have permission to do that.", 150);
 }
+
+const reviewsRequests = (role: Role, policy: string) => (policy === "RestrictedJoinRequestsRequireAdminApproval" ? atLeast(role, "Admin") : canModerate(role));
 
 async function one(viewerId: string, id: string) {
 	const obj = (await communityObjects(viewerId, [id])).get(id);
@@ -206,14 +208,17 @@ async function create(v: Viewer, vars: Vars) {
 	const joinPolicy = JOIN_POLICIES.includes(vars.joinPolicy) ? vars.joinPolicy : "Open";
 	const invitesPolicy = INVITE_POLICIES.includes(vars.invitesPolicy) ? vars.invitesPolicy : "MemberInvitesAllowed";
 	if (v.status !== "active") throw new PostError("Your account can't create communities right now.", 326);
-	const [owned] = await sql`select count(*)::int as n from communities where creator_id = ${v.id}::bigint`;
-	if (owned.n >= MAX_CREATED) throw new PostError("You've created the most communities you can.", 214);
-	const [taken] = await sql`select 1 from communities where lower(name) = lower(${name})`;
-	if (taken) throw new PostError("A community with that name already exists.", 214);
 	const id = newId();
-	await sql`insert into communities (id, creator_id, name, description, question, join_policy, invites_policy)
-		values (${id}::bigint, ${v.id}::bigint, ${name}, ${description}, ${question}, ${joinPolicy}, ${invitesPolicy})`;
-	await sql`insert into community_members (community_id, user_id, role) values (${id}::bigint, ${v.id}::bigint, 'Admin')`;
+	await sql.begin(async (tx) => {
+		await holdLock(tx, `communities-created:${v.id}`);
+		const [owned] = await tx`select count(*)::int as n from communities where creator_id = ${v.id}::bigint`;
+		if (owned.n >= MAX_CREATED) throw new PostError("You've created the most communities you can.", 214);
+		const [taken] = await tx`select 1 from communities where lower(name) = lower(${name})`;
+		if (taken) throw new PostError("A community with that name already exists.", 214);
+		await tx`insert into communities (id, creator_id, name, description, question, join_policy, invites_policy)
+			values (${id}::bigint, ${v.id}::bigint, ${name}, ${description}, ${question}, ${joinPolicy}, ${invitesPolicy})`;
+		await tx`insert into community_members (community_id, user_id, role) values (${id}::bigint, ${v.id}::bigint, 'Admin')`;
+	});
 	return { data: { community_create_v2: await one(v.id, id) } };
 }
 
@@ -256,7 +261,8 @@ async function leave(v: Viewer, vars: Vars) {
 
 async function respond(v: Viewer, vars: Vars, approve: boolean) {
 	const id = communityId(vars);
-	await mustBe(v.id, id, "Moderator");
+	const { role, policy } = await roleOf(v.id, id);
+	if (!reviewsRequests(role, policy)) throw new PostError("You don't have permission to do that.", 150);
 	if (!isId(vars.userId)) throw new PostError("Invalid user id.", 144);
 	const [request] = await sql`delete from community_join_requests where community_id = ${id}::bigint and user_id = ${vars.userId}::bigint returning answer, created_at`;
 	if (request && approve) {
@@ -319,9 +325,12 @@ async function rules(v: Viewer, vars: Vars, op: "create" | "update" | "remove" |
 	if (op === "create") {
 		const name = clean(vars.name, MAX_RULE_NAME, "The rule name", true);
 		const description = clean(vars.description, MAX_RULE_DESCRIPTION, "The rule description");
-		const [n] = await sql`select count(*)::int as n, coalesce(max(position), 0) + 1 as next from community_rules where community_id = ${id}::bigint`;
-		if (n.n >= MAX_RULES) throw new PostError(`A community can have up to ${MAX_RULES} rules.`, 214);
-		await sql`insert into community_rules (id, community_id, name, description, position) values (${newId()}::bigint, ${id}::bigint, ${name}, ${description}, ${n.next})`;
+		await sql.begin(async (tx) => {
+			await holdLock(tx, `community-rules:${id}`);
+			const [n] = await tx`select count(*)::int as n, coalesce(max(position), 0) + 1 as next from community_rules where community_id = ${id}::bigint`;
+			if (n.n >= MAX_RULES) throw new PostError(`A community can have up to ${MAX_RULES} rules.`, 214);
+			await tx`insert into community_rules (id, community_id, name, description, position) values (${newId()}::bigint, ${id}::bigint, ${name}, ${description}, ${n.next})`;
+		});
 	} else if (op === "update") {
 		if (!isId(vars.ruleId)) throw missing();
 		const name = clean(vars.name, MAX_RULE_NAME, "The rule name", true);
@@ -331,8 +340,10 @@ async function rules(v: Viewer, vars: Vars, op: "create" | "update" | "remove" |
 		if (!isId(vars.ruleId)) throw missing();
 		await sql`delete from community_rules where id = ${vars.ruleId}::bigint and community_id = ${id}::bigint`;
 	} else {
-		const ids: string[] = Array.isArray(vars.ruleIds) ? vars.ruleIds.filter(isId) : [];
-		for (const [i, rule] of ids.entries()) await sql`update community_rules set position = ${i} where id = ${rule}::bigint and community_id = ${id}::bigint`;
+		const ids: string[] = Array.isArray(vars.ruleIds) ? [...new Set<string>(vars.ruleIds.filter(isId))] : [];
+		if (ids.length > MAX_RULES) throw new PostError(`A community can have up to ${MAX_RULES} rules.`, 214);
+		if (ids.length) await sql`update community_rules r set position = t.ord - 1 from unnest(${sql.array(ids, "INT8")}::bigint[]) with ordinality t(id, ord)
+			where r.id = t.id and r.community_id = ${id}::bigint`;
 	}
 	return { data: { [`community_rule_${op === "reorder" ? "rules_reorder" : op}`]: await one(v.id, id) } };
 }
@@ -369,9 +380,9 @@ const toolsQuery = async (v: Viewer, vars: Vars) => {
 	const id = communityId(vars);
 	const obj = (r.data.community_results_by_rest_id as any).result;
 	if (obj?.__typename !== "Community") return r;
-	const { role } = await roleOf(v.id, id);
+	const { role, policy } = await roleOf(v.id, id);
 	obj.actions = { ...obj.actions, community_spotlight_setup_action_result: { __typename: "CommunitySpotlightSetupActionUnavailable", reason: "NotSupported", message: "Spotlight isn't available here." } };
-	obj.join_requests_result = canModerate(role) ? await joinRequests(v.id, id) : { __typename: "CommunityJoinRequestsUnavailable" };
+	obj.join_requests_result = reviewsRequests(role, policy) ? await joinRequests(v.id, id) : { __typename: "CommunityJoinRequestsUnavailable" };
 	return r;
 };
 export const communityHandlers = {
@@ -420,8 +431,8 @@ export const communityHandlers = {
 	},
 	MemberRequests_Query: async (v: Viewer, vars: Vars) => {
 		const id = communityId(vars);
-		const { role } = await roleOf(v.id, id);
-		return inCommunity(v.id, id, { join_requests_result: canModerate(role) ? await joinRequests(v.id, id) : { __typename: "CommunityJoinRequestsUnavailable" } });
+		const { role, policy } = await roleOf(v.id, id);
+		return inCommunity(v.id, id, { join_requests_result: reviewsRequests(role, policy) ? await joinRequests(v.id, id) : { __typename: "CommunityJoinRequestsUnavailable" } });
 	},
 	actions_approveMemberRequest_Mutation: (v: Viewer, vars: Vars) => respond(v, vars, true),
 	actions_denyMemberRequest_Mutation: (v: Viewer, vars: Vars) => respond(v, vars, false),

@@ -6,7 +6,7 @@
 import { newerReason } from "./restricted-page";
 import { passwordTry } from "./ratelimit";
 import { randomBytes } from "node:crypto";
-import { accountPage, esc } from "./account-page";
+import { accountPage, esc, scriptNonce } from "./account-page";
 import type { Viewer } from "./auth";
 import { SECURE, clearedCookies } from "./auth";
 import { PUBLIC_ORIGIN } from "./config";
@@ -59,7 +59,8 @@ export async function noticesApi(req: Request, v: Viewer) {
 export async function noticesPage(req: Request, v: Viewer) {
 	const [messages, appeals] = await Promise.all([messagesOf(v.id), appealsOf(v.id)]);
 	// opening the page reads them
-	await sql`update staff_messages set read_at = now() where user_id = ${v.id}::bigint and read_at is null`;
+	const site = req.headers.get("sec-fetch-site");
+	if (site === "same-origin" || site === "none") await sql`update staff_messages set read_at = now() where user_id = ${v.id}::bigint and read_at is null`;
 	const open = appeals.some((a: any) => a.status === "open");
 	const list = messages.length
 		? messages.map((m: any) => `<div class="card ${esc(m.kind)}">
@@ -82,7 +83,7 @@ export async function noticesPage(req: Request, v: Viewer) {
 		<p class="error" id="appeal-error" role="alert"></p>
 		<button type="submit">Send appeal</button>
 	</form>`}
-<script>
+<script nonce="${scriptNonce(req)}">
 (function(){
 	var csrf=(document.cookie.match(/(?:^|;\\s*)ct0=([^;]+)/)||[])[1]||"",form=document.getElementById("appeal"),message;
 	document.querySelectorAll("[data-appeal]").forEach(function(b){b.onclick=function(){message=b.dataset.appeal;form.hidden=false;form.querySelector("textarea").focus()}});
@@ -139,7 +140,7 @@ export async function appealRoute(req: Request, address: string) {
 	const cookie = /(?:^|;\s*)appeal_csrf=([^;]+)/.exec(req.headers.get("cookie") ?? "")?.[1];
 	if (!cookie || form.get("csrf") !== cookie) return page("The form expired. Try again.", 403);
 	const handle = String(form.get("username") ?? "").trim().replace(/^@/, "").toLowerCase().slice(0, 15);
-	const refund = passwordTry(handle);
+	const refund = passwordTry(handle, address);
 	if (!refund) return page("Too many tries for that account. Wait 15 minutes.", 429);
 	const [user] = await sql`select id::text, password_hash from users where lower(screen_name) = ${handle} and instance is null`;
 	const valid = await Bun.password.verify(String(form.get("password") ?? "").slice(0, 1024), user?.password_hash ?? (await dummyHash)).catch(() => false);

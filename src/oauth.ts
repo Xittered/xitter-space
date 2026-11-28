@@ -12,7 +12,7 @@ import { sniffImage } from "./media";
 import { requestIp } from "./login-history";
 import { clientMetadata, metadataClientId } from "./oauth-metadata";
 import { passwordStep } from "./password-sign-in";
-import { hit, limitedResponse } from "./ratelimit";
+import { addressKey, hit, limitedResponse } from "./ratelimit";
 import { feature, settings } from "./settings";
 import { loadLook, nightModeCookies } from "./themes/api";
 import { answerChallenge } from "./two-factor";
@@ -134,11 +134,11 @@ const appCard = (request: RequestData) => {
 // Signed out, the authorize page signs you in itself (password, then a
 // second-factor code if the account has one) and comes back to the request.
 async function signInFirst(req: Request, url: URL): Promise<Response> {
-	const ip = requestIp(req) ?? "unknown";
+	const ip = addressKey(requestIp(req));
 	const f = req.method === "POST" ? await form(req) : undefined;
 	// a sign-in form posted from another site would sign you in as someone else
 	if (req.method === "POST" && (!f || req.headers.get("origin") !== PUBLIC_ORIGIN)) return new Response("Invalid sign-in form.", { status: 403 });
-	if (!f && metadataClientId(url.searchParams.get("client_id") ?? "")) {
+	if (metadataClientId(String((f ?? url.searchParams).get("client_id") ?? ""))) {
 		const limit = hit("endpoint", `oauth-metadata:${ip}`);
 		if (!limit.ok) return limitedResponse(limit);
 	}
@@ -162,7 +162,7 @@ async function signInFirst(req: Request, url: URL): Promise<Response> {
 			}
 		} else {
 			typed = value(f, "username");
-			const step = await passwordStep(typed, value(f, "password"));
+			const step = await passwordStep(typed, value(f, "password"), requestIp(req));
 			if ("session" in step) return signedIn(step.session);
 			if ("challenge" in step) challenge = step.challenge;
 			else error = step.error;
@@ -186,10 +186,11 @@ ${error ? `<p class="error" role="alert">${esc(error)}</p>` : ""}<form method="p
 export async function oauthAuthorize(req: Request, url: URL, viewer: Viewer | undefined): Promise<Response> {
 	if (!viewer) return signInFirst(req, url);
 	if (viewer.status !== "active") return new Response("This account cannot authorize apps.", { status: 403 });
+	if (req.method === "POST" && viewer.impersonator) return new Response("Not while signed in as someone else.", { status: 403 });
 	const f = req.method === "POST" ? await form(req) : undefined;
 	if (req.method === "POST" && (!f || value(f, "csrf") !== viewer.csrf || (req.headers.get("origin") && req.headers.get("origin") !== PUBLIC_ORIGIN))) return new Response("Invalid authorization form.", { status: 403 });
 	// opening the page may fetch an app's metadata document; keep that bounded
-	if (!f && metadataClientId(url.searchParams.get("client_id") ?? "")) {
+	if (metadataClientId(String((f ?? url.searchParams).get("client_id") ?? ""))) {
 		const limit = hit("endpoint", `oauth-metadata:${viewer.id}`);
 		if (!limit.ok) return limitedResponse(limit);
 	}
@@ -206,9 +207,12 @@ export async function oauthAuthorize(req: Request, url: URL, viewer: Viewer | un
 		}
 		if (value(f, "decision") !== "approve") return redirectWith(request, { error: "access_denied" });
 		const fresh = code();
-		await sql.begin(async (tx) => {
+		const issued = await sql.begin(async (tx) => {
 			const [account] = await tx`select id from users where id = ${viewer.id}::bigint and status = 'active' and deactivated_at is null and instance is null for update`;
 			if (!account) throw new Error("Account cannot authorize apps.");
+			const [session] = await tx`select token from sessions where token = ${viewer.token} and user_id = ${viewer.id}::bigint
+				and (expires_at is null or expires_at > clock_timestamp())`;
+			if (!session) return false;
 			await tx`delete from oauth_codes where expires_at < now()`;
 			let clientId = request.dbId;
 			if (!isId(request.clientId)) {
@@ -219,7 +223,9 @@ export async function oauthAuthorize(req: Request, url: URL, viewer: Viewer | un
 			}
 			await tx`insert into oauth_codes(code_hash, client_id, user_id, redirect_uri, scope, code_challenge, expires_at)
 				values(${digest(fresh)}, ${clientId}::bigint, ${viewer.id}::bigint, ${request.redirect}, ${request.scope}, ${request.challenge}, now() + interval '5 minutes')`;
+			return true;
 		});
+		if (!issued) return new Response("Sign in again to authorize this app.", { status: 401 });
 		return redirectWith(request, { code: fresh });
 	}
 	const hidden = hiddenFields({ ...requestParams(request), csrf: viewer.csrf });
@@ -314,7 +320,8 @@ export async function connectedAppsRoute(req: Request, viewer: Viewer): Promise<
 	if (!f || value(f, "csrf") !== viewer.csrf || (req.headers.get("origin") && req.headers.get("origin") !== PUBLIC_ORIGIN)) return new Response("Invalid form.", { status: 403 });
 	const id = value(f, "id");
 	if (!isId(id)) return new Response("Invalid grant.", { status: 400 });
-	await sql`delete from api_tokens where id = ${id}::bigint and user_id = ${viewer.id}::bigint and client_id is not null`;
+	const [removed] = await sql`delete from api_tokens where id = ${id}::bigint and user_id = ${viewer.id}::bigint and client_id is not null returning client_id`;
+	if (removed) await sql`delete from oauth_codes where user_id = ${viewer.id}::bigint and client_id = ${removed.client_id}`;
 	return appsPage(req, viewer, "App access removed.");
 }
 

@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { MAX_POST_MEDIA, PUBLIC_ORIGIN } from "./config";
-import { sql } from "./db";
+import { holdLock, sql } from "./db";
 import { flagValue } from "./flags";
 import { pronounsValue } from "./pronouns";
 import { badgeUrl, badgesOf } from "./users";
@@ -156,8 +156,9 @@ async function renderPair(kind: "like" | "repost" | "follow", a: string, b: stri
 		return target ? { kind, actor: a, target, on: !!on, counts: target === ref(b) ? await userCounts(b) : null } : undefined;
 	}
 	const table = kind === "like" ? sql`likes` : sql`reposts`;
-	const [on] = await sql`select 1 from ${table} where user_id = ${a}::bigint and post_id = ${b}::bigint`;
 	const target = await canonicalOf("post", b);
+	if (target === ref(b) && !(await publicPost(b)).length) return undefined;
+	const [on] = await sql`select 1 from ${table} where user_id = ${a}::bigint and post_id = ${b}::bigint`;
 	return target ? { kind, actor: a, target, on: !!on, counts: target === ref(b) ? await postCounts(b) : null } : undefined;
 }
 
@@ -325,19 +326,25 @@ export async function applyUser(instance: string, u: any): Promise<string | unde
 	const handle = `${u.screen_name}@${instance}`;
 	await sql`update users set screen_name = screen_name || '~' || remote_id::text where lower(screen_name) = lower(${handle}) and instance = ${instance} and remote_id <> ${u.id}::bigint`;
 	const created = typeof u.created_at === "string" && !Number.isNaN(Date.parse(u.created_at)) ? new Date(u.created_at) : new Date();
-	const id = local ?? newId();
+	let id = local ?? newId();
 	if (local)
 		await sql`update users set screen_name = ${handle}, name = ${oneLine(clip(u.name, NAME_MAX))}, bio = ${cleanText(clip(u.bio, 300), { lines: 6 })}, location = ${oneLine(clip(u.location, 60))}, website = ${website}, protected = ${!!u.protected}
 			where id = ${local}::bigint`;
 	else {
-		const [{ n }] = await sql`select count(*)::int as n from users where instance = ${instance}`;
-		if (n >= MAX_ACCOUNTS) throw new FederationError(`${instance} already has ${MAX_ACCOUNTS} accounts here`);
-		await sql`insert into users (id, screen_name, name, password_hash, bio, location, website, protected, instance, remote_id, created_at)
-			values (${id}::bigint, ${handle}, ${oneLine(clip(u.name, NAME_MAX))}, '!', ${cleanText(clip(u.bio, 300), { lines: 6 })}, ${oneLine(clip(u.location, 60))}, ${website}, ${!!u.protected}, ${instance}, ${u.id}::bigint, ${created})
-			on conflict (instance, remote_id) where instance is not null do nothing`;
-		const again = await mapped(instance, "user", u.id);
-		if (again) return again;
-		await sql`insert into federated_objects (instance, kind, remote_id, local_id) values (${instance}, 'user', ${u.id}::bigint, ${id}::bigint) on conflict do nothing`;
+		const made = await sql.begin(async (tx) => {
+			await holdLock(tx, `federated-users:${instance}`);
+			const [known] = await tx`select local_id::text from federated_objects where instance = ${instance} and kind = 'user' and remote_id = ${u.id}::bigint`;
+			if (known) return { again: known.local_id as string };
+			const [{ n }] = await tx`select count(*)::int as n from users where instance = ${instance}`;
+			if (n >= MAX_ACCOUNTS) throw new FederationError(`${instance} already has ${MAX_ACCOUNTS} accounts here`);
+			const [row] = await tx`insert into users (id, screen_name, name, password_hash, bio, location, website, protected, instance, remote_id, created_at)
+				values (${id}::bigint, ${handle}, ${oneLine(clip(u.name, NAME_MAX))}, '!', ${cleanText(clip(u.bio, 300), { lines: 6 })}, ${oneLine(clip(u.location, 60))}, ${website}, ${!!u.protected}, ${instance}, ${u.id}::bigint, ${created})
+				on conflict (instance, remote_id) where instance is not null do update set instance = excluded.instance returning id::text`;
+			await tx`insert into federated_objects (instance, kind, remote_id, local_id) values (${instance}, 'user', ${u.id}::bigint, ${row.id}::bigint) on conflict do nothing`;
+			return { id: row.id as string };
+		});
+		if (made.again) return made.again;
+		id = made.id!;
 	}
 	const avatar = await remoteMedia(instance, id, u.avatar, null, null);
 	const banner = await remoteMedia(instance, id, u.banner, null, null);
@@ -572,7 +579,7 @@ export async function pullFrom(instance: string): Promise<number> {
 		await sql`update federation_peers set last_error = ${e instanceof Error ? e.message.slice(0, 500) : String(e)}, last_error_at = now() where instance = ${instance}`;
 	} finally {
 		pulling.delete(instance);
-		if (wanted.delete(instance)) void pullFrom(instance);
+		if (wanted.delete(instance)) void pullFrom(instance).catch((e) => console.error("federation pull:", e));
 	}
 	return applied;
 }
@@ -586,7 +593,7 @@ function pokeSoon(instance: string) {
 		instance,
 		setTimeout(() => {
 			pokes.delete(instance);
-			void pullFrom(instance);
+			void pullFrom(instance).catch((e) => console.error("federation pull:", e));
 		}, 500),
 	);
 }
@@ -599,12 +606,30 @@ async function pokePeers() {
 	await Promise.all(peers().map((p) => signedFetch(p.id, "POST", "/federation/v1/poke", {}).catch(() => undefined)));
 }
 
+const MAX_PULLS = Number(process.env.FEDERATION_MEDIA_PULLS) || 3;
+const MAX_WAITING_PULLS = 200;
+let mediaPulls = 0;
+const pullWaiting: (() => void)[] = [];
+async function pullInTurn<T>(job: () => Promise<T>): Promise<T | undefined> {
+	if (mediaPulls >= MAX_PULLS) {
+		if (pullWaiting.length >= MAX_WAITING_PULLS) return undefined;
+		await new Promise<void>((go) => pullWaiting.push(go));
+	}
+	mediaPulls++;
+	try {
+		return await job();
+	} finally {
+		mediaPulls--;
+		pullWaiting.shift()?.();
+	}
+}
+
 const fetching = new Map<string, Promise<Uint8Array | undefined>>();
 function pullOnce(localId: string, poster: boolean): Promise<Uint8Array | undefined> {
 	const key = `${localId}${poster ? "p" : ""}`;
 	const running = fetching.get(key);
 	if (running) return running;
-	const job = pullRemoteMedia(localId, poster).finally(() => fetching.delete(key));
+	const job = pullInTurn(() => pullRemoteMedia(localId, poster)).finally(() => fetching.delete(key));
 	fetching.set(key, job);
 	return job;
 }
@@ -622,10 +647,42 @@ function remember(key: string, body: Uint8Array) {
 	}
 }
 
+const DISK_CACHE = (Number(process.env.FEDERATION_MEDIA_DISK_CACHE_MB) || 1024) * 1024 * 1024;
+const DISK_DIR = join(MEDIA_DIR, ".remote-cache");
+
+function cacheOnDisk(key: string, body: Uint8Array): Blob {
+	mkdirSync(DISK_DIR, { recursive: true });
+	const file = join(DISK_DIR, key);
+	const temp = `${file}.part${newId()}`;
+	writeFileSync(temp, body);
+	renameSync(temp, file);
+	const files = readdirSync(DISK_DIR)
+		.filter((f) => !f.includes(".part"))
+		.flatMap((f) => {
+			try {
+				const s = statSync(join(DISK_DIR, f));
+				return [{ f, size: s.size, at: s.mtimeMs }];
+			} catch {
+				return [];
+			}
+		})
+		.sort((a, b) => a.at - b.at);
+	let total = files.reduce((n, x) => n + x.size, 0);
+	for (const x of files) {
+		if (total <= DISK_CACHE || x.f === key) continue;
+		try {
+			rmSync(join(DISK_DIR, x.f), { force: true });
+			total -= x.size;
+		} catch {}
+	}
+	return Bun.file(file);
+}
+
 export async function remoteMediaFile(localId: string, poster = false): Promise<Blob | undefined> {
 	const file = poster ? posterFile(MEDIA_DIR, localId) : join(MEDIA_DIR, localId);
 	if (existsSync(file)) return Bun.file(file);
 	const key = `${localId}${poster ? "p" : ""}`;
+	if (!STORE_MEDIA && existsSync(join(DISK_DIR, key))) return Bun.file(join(DISK_DIR, key));
 	const cached = memory.get(key);
 	if (cached) {
 		memory.delete(key);
@@ -635,6 +692,7 @@ export async function remoteMediaFile(localId: string, poster = false): Promise<
 	const body = await pullOnce(localId, poster);
 	if (!body) return undefined;
 	if (!STORE_MEDIA) {
+		if (body.length > MEMORY_CACHE / 4) return cacheOnDisk(key, body);
 		remember(key, body);
 		return new Blob([body as Uint8Array<ArrayBuffer>]);
 	}
@@ -736,7 +794,7 @@ export function startFederationSync() {
 	setInterval(() => {
 		tick++;
 		void pokePeers().catch(() => {});
-		if (tick % 5 === 0) for (const p of peers()) if (!backingOff(p.id)) void pullFrom(p.id);
+		if (tick % 5 === 0) for (const p of peers()) if (!backingOff(p.id)) void pullFrom(p.id).catch((e) => console.error("federation pull:", e));
 		if (tick % 200 === 10) void backfillMedia().catch((e) => console.error("federation: media backfill:", e instanceof Error ? e.message : e));
 		if (tick % 3600 === 0) void sql`delete from federation_outbox where created_at < now() - interval '60 days'`.catch(() => {});
 	}, 3000).unref();
