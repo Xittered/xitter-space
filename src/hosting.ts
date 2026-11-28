@@ -160,12 +160,13 @@ export function startHostingChecks() {
 export async function hostingHandoff(url: URL, viewer: Viewer | undefined): Promise<Response> {
 	const state = url.searchParams.get("state") ?? "";
 	if (!HOSTING_ON || !/^[A-Za-z0-9_-]{43}$/.test(state)) return new Response("not found", { status: 404 });
-	if (!viewer || viewer.instance) {
-		return runPage("Sign in first", `<h1>Sign in first</h1><p>Sign in to <a href="${PUBLIC_ORIGIN}/">${esc(new URL(PUBLIC_ORIGIN).host)}</a> with your account, then come back to <a href="${SITE_ORIGIN}/">${esc(SITE_HOST)}</a> and press Sign in again.</p>`);
-	}
+	const signIn = () => runPage("Sign in first", `<h1>Sign in first</h1><p>Sign in to <a href="${PUBLIC_ORIGIN}/">${esc(new URL(PUBLIC_ORIGIN).host)}</a> with your account, then come back to <a href="${SITE_ORIGIN}/">${esc(SITE_HOST)}</a> and press Sign in again.</p>`);
+	if (!viewer || viewer.instance || viewer.actor || !viewer.token) return signIn();
 	const ticket = random();
 	await sql`delete from hosting_tickets where created_at < now() - interval '2 minutes'`;
-	await sql`insert into hosting_tickets (ticket_hash, user_id, state) values (${digest(ticket)}, ${viewer.id}::bigint, ${state})`;
+	const [made] = await sql`insert into hosting_tickets (ticket_hash, user_id, state, session_token)
+		select ${digest(ticket)}, user_id, ${state}, token from sessions where token = ${viewer.token} and user_id = ${viewer.id}::bigint returning 1`.catch(() => []);
+	if (!made) return signIn();
 	return redirect(`${SITE_ORIGIN}/callback?ticket=${ticket}&state=${state}`);
 }
 
@@ -175,7 +176,9 @@ async function applicant(req: Request): Promise<Applicant | undefined> {
 	const token = cookie(req, SESSION);
 	if (!token) return;
 	const [s] = await sql`select u.id::text, u.screen_name, s.csrf, u.status, u.role from hosting_sessions s join users u on u.id = s.user_id
-		where s.token_hash = ${digest(token)} and s.created_at > now() - interval '30 days' and u.deactivated_at is null`;
+		join sessions m on m.token = s.session_token and m.user_id = s.user_id
+		where s.token_hash = ${digest(token)} and s.created_at > now() - interval '30 days' and u.deactivated_at is null and u.status <> 'suspended'
+			and (m.expires_at is null or m.expires_at > now())`;
 	return s as Applicant | undefined;
 }
 
@@ -239,11 +242,13 @@ export async function applyRoutes(req: Request, url: URL): Promise<Response> {
 		const ticket = url.searchParams.get("ticket") ?? "", state = url.searchParams.get("state") ?? "";
 		const fail = () => runPage("Sign-in failed", `<h1>That didn't work</h1><p>The sign-in link was used, expired or opened in another browser.</p><p><a class="btn" href="/login">Try again</a></p>`, 400);
 		if (!state || cookie(req, STATE) !== state || !/^[A-Za-z0-9_-]{43}$/.test(ticket)) return fail();
-		const [t] = await sql`delete from hosting_tickets where ticket_hash = ${digest(ticket)} and state = ${state} and created_at > now() - interval '2 minutes' returning user_id::text`;
-		if (!t) return fail();
+		const [t] = await sql`delete from hosting_tickets where ticket_hash = ${digest(ticket)} and state = ${state} and created_at > now() - interval '2 minutes' returning user_id::text, session_token`;
+		if (!t?.session_token) return fail();
 		const token = random();
 		await sql`delete from hosting_sessions where created_at < now() - interval '30 days'`;
-		await sql`insert into hosting_sessions (token_hash, user_id, csrf) values (${digest(token)}, ${t.user_id}::bigint, ${random()})`;
+		const [made] = await sql`insert into hosting_sessions (token_hash, user_id, csrf, session_token)
+			select ${digest(token)}, user_id, ${random()}, token from sessions where token = ${t.session_token} and user_id = ${t.user_id}::bigint returning 1`.catch(() => []);
+		if (!made) return fail();
 		return redirect("/apply", [`${SESSION}=${token}; ${COOKIE}; Max-Age=${30 * 86400}`, `${STATE}=; ${COOKIE}; Max-Age=0`]);
 	}
 	if (p !== "/apply" && p !== "/withdraw" && p !== "/check" && p !== "/logout") return runPage("Not found", `<h1>Not found</h1><p><a href="/">Back to the start</a></p>`, 404);

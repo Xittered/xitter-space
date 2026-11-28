@@ -1587,6 +1587,10 @@ create table if not exists hosting_sessions (
 	csrf text not null,
 	created_at timestamptz not null default now()
 );
+alter table hosting_tickets add column if not exists session_token text references sessions (token) on delete cascade;
+alter table hosting_sessions add column if not exists session_token text references sessions (token) on delete cascade;
+create index if not exists hosting_tickets_session on hosting_tickets (session_token);
+create index if not exists hosting_sessions_session on hosting_sessions (session_token);
 create table if not exists deploys (
 	id bigint primary key,
 	kind text not null check (kind in ('update', 'rollback', 'auto')),
