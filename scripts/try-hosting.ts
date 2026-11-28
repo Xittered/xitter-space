@@ -30,7 +30,7 @@ check("signed in on the main site", main.some((c) => c.startsWith("auth_token=")
 const start = await apply("/login");
 const stateCookie = jar(start);
 const to = new URL(start.headers.get("location")!);
-check("apply /login sends to the hand-off", to.pathname === "/account/hosting/handoff" && stateCookie[0]!.startsWith("apply_state="));
+check("apply /login sends to the hand-off", to.pathname === "/account/hosting/handoff" && stateCookie[0]!.startsWith("__Host-apply_state="));
 
 const guest = await fetch(`${origin}${to.pathname}${to.search}`, { redirect: "manual" });
 check("a guest gets told to sign in first", guest.status === 200 && (await guest.text()).includes("Sign in first"));
@@ -44,7 +44,7 @@ check("a ticket without the state cookie is refused", stolen.status === 400);
 const hand2 = await fetch(`${origin}${to.pathname}${to.search}`, { redirect: "manual", headers: { cookie: main.join("; ") } });
 const back2 = new URL(hand2.headers.get("location")!);
 const cb = await apply(`/callback${back2.search}`, { cookies: stateCookie });
-const session = jar(cb).filter((c) => c.startsWith("apply_session="));
+const session = jar(cb).filter((c) => c.startsWith("__Host-apply_session="));
 check("the callback signs in on the apply site", cb.status === 303 && session.length === 1);
 check("a used ticket is refused", (await apply(`/callback${back2.search}`, { cookies: stateCookie })).status === 400);
 

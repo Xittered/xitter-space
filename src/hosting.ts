@@ -38,6 +38,8 @@ export const SITE_ORIGIN = `https://${SITE_HOST}`;
 const digest = (s: string) => createHash("sha256").update(s).digest("hex");
 const random = () => randomBytes(32).toString("base64url");
 const COOKIE = "Path=/; HttpOnly; Secure; SameSite=Lax";
+const SESSION = "__Host-apply_session";
+const STATE = "__Host-apply_state";
 
 // ── names and targets ─────────────────────────────────────────────────────
 
@@ -170,7 +172,7 @@ export async function hostingHandoff(url: URL, viewer: Viewer | undefined): Prom
 type Applicant = { id: string; screen_name: string; csrf: string; status: string; role: string | null };
 
 async function applicant(req: Request): Promise<Applicant | undefined> {
-	const token = cookie(req, "apply_session");
+	const token = cookie(req, SESSION);
 	if (!token) return;
 	const [s] = await sql`select u.id::text, u.screen_name, s.csrf, u.status, u.role from hosting_sessions s join users u on u.id = s.user_id
 		where s.token_hash = ${digest(token)} and s.created_at > now() - interval '30 days' and u.deactivated_at is null`;
@@ -230,19 +232,19 @@ export async function applyRoutes(req: Request, url: URL): Promise<Response> {
 	if (p === "/login") {
 		if (!hit("auth", ip).ok) return slow();
 		const state = random();
-		return redirect(`${PUBLIC_ORIGIN}/account/hosting/handoff?state=${state}`, [`apply_state=${state}; ${COOKIE}; Max-Age=600`]);
+		return redirect(`${PUBLIC_ORIGIN}/account/hosting/handoff?state=${state}`, [`${STATE}=${state}; ${COOKIE}; Max-Age=600`]);
 	}
 	if (p === "/callback") {
 		if (!hit("auth", ip).ok) return slow();
 		const ticket = url.searchParams.get("ticket") ?? "", state = url.searchParams.get("state") ?? "";
 		const fail = () => runPage("Sign-in failed", `<h1>That didn't work</h1><p>The sign-in link was used, expired or opened in another browser.</p><p><a class="btn" href="/login">Try again</a></p>`, 400);
-		if (!state || cookie(req, "apply_state") !== state || !/^[A-Za-z0-9_-]{43}$/.test(ticket)) return fail();
+		if (!state || cookie(req, STATE) !== state || !/^[A-Za-z0-9_-]{43}$/.test(ticket)) return fail();
 		const [t] = await sql`delete from hosting_tickets where ticket_hash = ${digest(ticket)} and state = ${state} and created_at > now() - interval '2 minutes' returning user_id::text`;
 		if (!t) return fail();
 		const token = random();
 		await sql`delete from hosting_sessions where created_at < now() - interval '30 days'`;
 		await sql`insert into hosting_sessions (token_hash, user_id, csrf) values (${digest(token)}, ${t.user_id}::bigint, ${random()})`;
-		return redirect("/apply", [`apply_session=${token}; ${COOKIE}; Max-Age=${30 * 86400}`, `apply_state=; ${COOKIE}; Max-Age=0`]);
+		return redirect("/apply", [`${SESSION}=${token}; ${COOKIE}; Max-Age=${30 * 86400}`, `${STATE}=; ${COOKIE}; Max-Age=0`]);
 	}
 	if (p !== "/apply" && p !== "/withdraw" && p !== "/check" && p !== "/logout") return runPage("Not found", `<h1>Not found</h1><p><a href="/">Back to the start</a></p>`, 404);
 
@@ -252,8 +254,8 @@ export async function applyRoutes(req: Request, url: URL): Promise<Response> {
 		const value = (k: string) => String(f?.get(k) ?? "");
 		if (!me || value("csrf") !== me.csrf || req.headers.get("origin") !== SITE_ORIGIN) return runPage("Out of date", `<h1>That form is out of date</h1><p><a href="/apply">Reload</a> and try again.</p>`, 403);
 		if (p === "/logout") {
-			await sql`delete from hosting_sessions where token_hash = ${digest(cookie(req, "apply_session")!)}`;
-			return redirect("/", [`apply_session=; ${COOKIE}; Max-Age=0`]);
+			await sql`delete from hosting_sessions where token_hash = ${digest(cookie(req, SESSION)!)}`;
+			return redirect("/", [`${SESSION}=; ${COOKIE}; Max-Age=0`]);
 		}
 		if (p === "/apply") return apply(me, f!);
 		const [mine] = await sql`select id::text, state, dns_record_id, last_check_at from hosted_instances where user_id = ${me.id}::bigint and state in ('pending', 'approved', 'live')`;
